@@ -70,7 +70,7 @@ atom_feed:
   hide                   : # true, false (default)
 search                   : # true, false (default)
 search_full_content      : # true, false (default)
-search_provider          : # lunr (default), algolia, google
+search_provider          : lunr # lunr (default), algolia, google
 lunr:
   search_within_pages    : # true, false (default)
 algolia:
@@ -114,8 +114,8 @@ analytics:
 # Site Author
 author:
   name             : "Ziad Mohamed"
-  avatar           : # path of avatar image, e.g. "/assets/images/bio-photo.jpg"
-  bio              : " Passionate about cybersecurity and ethical hacking, thrive on the challenge of identifying vulnerabilities and protecting systems from malicious attacks. With a strong foundation in network security, penetration testing, and hands-on experience in various hacking tools"
+  avatar           : "/assets/images/bio-photo.jpg"
+  bio              : "Enthusiastic hacker."
   location         : "Somewhere between 0's and 1's"
   email            :
   links:
@@ -127,13 +127,13 @@ author:
       # url: "https://your-website.com"
     - label: "Twitter"
       icon: "fab fa-fw fa-twitter-square"
-      # url: "https://twitter.com/"
+      url: "https://x.com/zzziadmo"
     - label: "Facebook"
       icon: "fab fa-fw fa-facebook-square"
-      # url: "https://facebook.com/"
+      url: "https://www.facebook.com/Z0Z11"
     - label: "GitHub"
       icon: "fab fa-fw fa-github"
-      # url: "https://github.com/"
+      url: "https://github.com/0xPix3l"
     - label: "Instagram"
       icon: "fab fa-fw fa-instagram"
       # url: "https://instagram.com/"
