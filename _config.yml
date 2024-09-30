@@ -115,7 +115,7 @@ analytics:
 author:
   name             : "Ziad Mohamed"
   avatar           : "/assets/images/bio-photo.jpg"
-  bio              : "Enthusiastic hacker."
+  bio              : "Enthusiastic pentration tester."
   location         : "Somewhere between 0's and 1's"
   email            :
   links:
@@ -137,6 +137,9 @@ author:
     - label: "Instagram"
       icon: "fab fa-fw fa-instagram"
       # url: "https://instagram.com/"
+    - label: "LinkedIn"
+      icon: "fab fa-fw fa-linkedin"
+      url: "https://www.linkedin.com/in/ziadmohamed1/"
 
 # Site Footer
 footer:
