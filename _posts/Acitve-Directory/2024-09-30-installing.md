@@ -99,7 +99,7 @@ The Windows servers and Ubuntu VMs are now set up.
 ---
 
 # Provisioning and fixing errors
-Now the errors, the final and most unpleasant phase.
+Now for the errors, the final and most unpleasant phase.
 
 I started the ansible playbooks scripts
 ```bash
