@@ -108,7 +108,7 @@ ansible-playbook -i ../ad/GOAD-Light/data/inventory -I ../ad/GOAD-Light/provider
 but I encountered this error:
 ![image](/assets/images/GOAD/installing/unreachable.png)
 
-So it trying to use `HTTPS` and port `5986` but it can't\
+So it is trying to use `HTTPS` and port `5986` but it can't\
 I first checked if `winrm` was working and the creds are valid by running `evil-winrm` tool
 ```bash
 evil-winrm -u vagrant -p vagrant -i 192.168.56.10
