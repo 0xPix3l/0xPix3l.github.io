@@ -2,5 +2,5 @@
 main:
   - title: "All Tags"
     url: /tags
-  - title: "GOAD"
-    url: /GOAD
+  - title: "Active Directory"
+    url: /Active-Directory
