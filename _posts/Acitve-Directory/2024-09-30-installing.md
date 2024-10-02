@@ -16,7 +16,7 @@ header:
 # ribbon: DarkSlateBlue
 ---
 
-I'll walk through how I set up the [Game Of Active Directory](https://github.com/Orange-Cyberdefense/GOAD/) lab using VMware Pro on a Windows host.
+Walking through how I set up the [Game Of Active Directory](https://github.com/Orange-Cyberdefense/GOAD/) lab using VMware Pro on a Windows host.
 
 GOAD is a lab enviroment built for pentesters with alot of misconfigurations to practice different attack methods and techniques.
 
