@@ -1,7 +1,7 @@
 ---
 title: "Installing GOAD"
 date: 2024-09-30
-permalink: /Active-Directory/installing-goad
+permalink: /Active-Directory/installing-goad/
 categories: [Active Directory, GOAD]
 tags: [installation]
 toc: true
