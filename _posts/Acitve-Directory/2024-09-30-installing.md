@@ -60,7 +60,7 @@ So the network configuration will be as the following:
 -  Second network adapter to put the 3 VMs and Ubuntu VM on a NAT network.
 
 then manually set static IP for each Windows server sequentially.
-> ***Important note:*** I had to change the name of `Ethernet0` to `Ethernet1` and `Ethernet1` to `Ethernet2`, because ansible will treat `Ethernet1` as the `192.168.56.xx` (Host-only adapter). The `Ethernet2` one will be the NAT. Or change it from the inventory file.
+> ***Important note:*** I had to change the name of `Ethernet0` to `Ethernet1` and `Ethernet1` to `Ethernet2`, because ansible will treat `Ethernet1` as the `192.168.56.xx` (Host-only adapter). The `Ethernet2` one will be the NAT (for provisioning purposes). Or change it from the inventory file.
 
 If you check the inventory file you will see that it uses winrm protocol with user account `vagrant` and password `vagrant`. Accordingly, I added this user to each of the 3 VMs and added them in the Administrators group. which is verifiable using:
 ``` powershell
