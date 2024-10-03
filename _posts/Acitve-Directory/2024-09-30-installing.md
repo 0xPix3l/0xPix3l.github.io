@@ -163,9 +163,10 @@ I verified that `DC02` was successfully assigned to the domain (since it had the
 [System.DirectoryServices.ActiveDirectory.Domain]::GetComputerDomain()
 ```
 ![image](/assets/images/GOAD/installing/domain.png)
+Using `netexec` to verify: 
+![image](/assets/images/GOAD/installing/poc.png)
 
-
-And everything is set up!
+Now everything is set up!
 
 ---
 
