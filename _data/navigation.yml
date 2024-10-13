@@ -1,6 +1,8 @@
 # main links
 main:
-  - title: "All Tags"
-    url: /tags
   - title: "Active Directory"
     url: /Active-Directory
+  - title: "Rooms"
+    url: /Rooms
+  - title: "All Tags"
+    url: /tags
