@@ -10,7 +10,7 @@ image:
   path: /assets/img/CTFs/MonitorsThree/MonitorsThree.jpg
 ---
 
-This was a medium box for me considiring the number of steps, but it was rewarding and I learned alot
+A medium box considiring the number of steps, however it was worthwhile and I learned alot
 
 ## Enumeration
 
