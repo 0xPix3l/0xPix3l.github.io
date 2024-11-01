@@ -22,7 +22,7 @@ So I had two options:
 - Install it on any linux distro and have nested VMs which will slow everything down 
 - Figuring out how to set it up on a Windows, as mentioned that some fellas already managed to successfully install the lab from a Windows host.
 
-# What will we need?
+## What will we need?
 1. Windows host with vagrant installed to download the Windows server 2019 VMs (which I skipped and I will explain later)
 2. Ubuntu or any Linux distro to run ansible playbooks scripts
 3. I installed the [GOAD-light](https://github.com/Orange-Cyberdefense/GOAD/blob/main/ad/GOAD-Light/README.md) which will have 3 VMs (1 forest and 2 domains):
@@ -40,7 +40,7 @@ So the process will work as follows:
 
 ---
 
-# Installing VMs
+## Installing VMs
 
 As I said earlier I skipped the vagrant part to download the VMs because I already had a Windows 2019 iso image. So, I installed them on VMware like any normal Windows server with default settings. But in order for them to work we had to tweak things a little.
 
@@ -92,7 +92,7 @@ The Windows servers and Ubuntu VMs are now set up.
 
 ---
 
-# Provisioning and fixing errors
+## Provisioning and fixing errors
 Now for the errors, the final and most unpleasant phase.
 
 I started the ansible playbooks scripts
