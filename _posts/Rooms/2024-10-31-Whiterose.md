@@ -4,6 +4,10 @@ permalink: /CTFs/THM-Whiterose/
 date: 2024-10-31
 categories: [TryHackMe]
 tags: [TryHackMe, Linux, SSTI]
+math: true
+mermaid: true
+image:
+  path: /assets/img/CTFs/Whiterose/whiterose.jpeg
 ---
 
 Another Mr. Robot themed box.

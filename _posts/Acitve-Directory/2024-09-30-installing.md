@@ -4,16 +4,10 @@ date: 2024-09-30
 permalink: /Active-Directory/installing-goad/
 categories: [Active Directory, GOAD]
 tags: [Installation, Active Directory, GOAD]
-toc: true
-toc_sticky: true
-toc_label: "On This Page"
-# toc_icon: "biohazard"
-classes: wide
-header:
-  teaser: /assets/img/GOAD/installing/game-of-thrones.jpg
-  overlay_image: /assets/img/GOAD/installing/game-of-thrones.jpg
-  overlay_filter: 0.8
-# ribbon: DarkSlateBlue
+math: true
+mermaid: true
+image:
+  path: /assets/img/GOAD/installing/game-of-thrones.jpg
 ---
 
 Walking through how I set up the [Game Of Active Directory](https://github.com/Orange-Cyberdefense/GOAD/) lab using VMware Pro on a Windows host.
