@@ -3,7 +3,7 @@ title: "HackTheBox - MonitorsThree"
 permalink: /CTFs/HTB-MonitorsThree/
 date: 2024-08-29
 categories: [HackTheBox]
-tags: [HackTheBox]
+tags: [HackTheBox, Linux]
 math: true
 mermaid: true
 image:
