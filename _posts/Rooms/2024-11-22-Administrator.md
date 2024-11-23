@@ -1,5 +1,5 @@
 ---
-title: "TryHackMe - Administrator"
+title: "HackTheBox - Administrator"
 permalink: /CTFs/HTB-Administrator/
 date: 2024-11-22
 categories: [HackTheBox]
