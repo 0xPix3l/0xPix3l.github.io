@@ -1,2 +1,0 @@
-cat users.txt | cut -d ':' -f 2 | cut -d '\' -f 2 | cut -d ' ' -f 1 | uniq >> potential_users.txt
-
