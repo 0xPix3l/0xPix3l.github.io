@@ -99,4 +99,4 @@ I created a wordlist with the user 'user' in it to filter the the unwanted pages
 
 as we can see there are 2 users who are valid: `user (our crafted account)` and `admin`, so we can filter out all the responses with size of `2985`.
 ![image](/assets/img/CTFs/nocturnal/names2.png)
-So I got these 3 users
+So I got these 3 userss
