@@ -3,7 +3,7 @@ title: "HackTheBox - nocturnal"
 permalink: /CTFs/HTB-nocturnal/
 date: 2025-05-02
 categories: [HackTheBox]
-tags: [command injection, Linux]
+tags: [IDOR, Command Injection, Linux]
 math: true
 mermaid: true
 image:
@@ -99,4 +99,65 @@ I created a wordlist with the user 'user' in it to filter the the unwanted pages
 
 as we can see there are 2 users who are valid: `user (our crafted account)` and `admin`, so we can filter out all the responses with size of `2985`.
 ![image](/assets/img/CTFs/Nocturnal/names2.png)
-So I got these 3 users
+So I got these 3 users, I tried to fuzz files with each one of them only amanda worked:
+![image](/assets/img/CTFs/Nocturnal/privacy.png)
+
+I downloaded this file to see this:
+![image](/assets/img/CTFs/Nocturnal/amanda.png)
+So I tried to login on the website with these creds and it worked! and I got the admin panal.
+![image](/assets/img/CTFs/Nocturnal/admin_panal.png)
+
+---
+
+## Foothold
+Upon examining the source code of the website I stumbled across this function:
+```
+function cleanEntry($entry) {
+    $blacklist_chars = [';', '&', '|', '$', ' ', '`', '{', '}', '&&'];
+
+    foreach ($blacklist_chars as $char) {
+        if (strpos($entry, $char) !== false) {
+            return false; // Malicious input detected
+        }
+    }
+
+    return htmlspecialchars($entry, ENT_QUOTES, 'UTF-8');
+}
+```
+So there is a potential command injection in the password parameter. I searched alot of techniques but the ones who worked for me was `%09` and `%0A` (tab and space)
+
+![image](/assets/img/CTFs/Nocturnal/poc.png)
+> `📝 NOTE:` If you hover the cursor over an encoded string in burp it will decode it to be able to see the string clearly as it is shown.
+
+Now we can upload a revshell
+![image](/assets/img/CTFs/Nocturnal/wget_revshell.png)
+And execute it
+![image](/assets/img/CTFs/Nocturnal/foothold.png)
+
+Inside the home directory of this user there is a file called `nocturnal_database.db`
+![image](/assets/img/CTFs/Nocturnal/tobias_hash.png)
+
+And I got the user after ssh into the machine
+![image](/assets/img/CTFs/Nocturnal/user.png)
+
+---
+## root
+Getting root was easy. After messing around I checked the routing tables and I saw this:
+![image](/assets/img/CTFs/Nocturnal/netstat.png)
+
+I cd to `/var/www` to see what service it is hosted
+![image](/assets/img/CTFs/Nocturnal/ispconfig.png)
+so there is a service called `ispconfig` is hosted only on from the localhost, so I tried to tunnel through it to be able to see it from my host machine using this command:
+```
+ssh -L 8888:127.0.0.1:8080 tobias@10.10.11.64
+```
+![image](/assets/img/CTFs/Nocturnal/isphome.png)
+
+I tried a tool called `whatweb` to see what version of this service to be able to search for a public RCE or something but it was fruitless, so I viewed the page source and I found this:
+![image](/assets/img/CTFs/Nocturnal/version.png)
+
+I tried the username `admin` with password of the user `tobias` and I got in. We can verify the version from the help page:
+![image](/assets/img/CTFs/Nocturnal/admin.png)
+
+then I searched for an exploit for this version and there was a CVE-2023-46818. I searched online for a public exploit and tried it to get root
+![image](/assets/img/CTFs/Nocturnal/root.png)
