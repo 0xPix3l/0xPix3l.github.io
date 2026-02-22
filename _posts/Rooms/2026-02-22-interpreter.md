@@ -9,6 +9,9 @@ mermaid: true
 image:
   path: /assets/img/CTFs/interpreter/logo.jpg
 ---
+
+>_Initial access was achieved by exploiting a Java deserialization vulnerability (CVE-2023-43208) in the Mirth Connect service, allowing for a reverse shell via a crafted XML payload. After discovering MariaDB credentials in the local configuration, the user's PBKDF2-HMAC-SHA256 hash was extracted from the database and cracked with Hashcat to enable SSH access as sedric. Finally, root privileges were obtained by exploiting a SSTI in a local Flask application where an `eval()` call was bypassed using Base64-encoded commands to circumvent regex filtering._
+
 ## Enumeration
 nmap:
 ```bash
