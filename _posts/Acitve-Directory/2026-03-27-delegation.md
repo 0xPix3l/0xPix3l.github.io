@@ -107,10 +107,10 @@ that’s the problem delegation was built to solve.
 I won’t go too deep into this part with traffic analysis since [@0x4148](https://x.com/0x4148) already covered this in far more detail in his blog[^blog].
 
 
-Unconstrained Delegation means that any account (user or machine account) is allowed to impersonate **any** user to access **any** service. 
-So if we have control over a machine with `TRUSTED_FOR_DELEGATION` and a high-privileged user authenticates to it, we can then extract their TGT and use it to request service tickets to any other service.
+But in general Unconstrained Delegation is a configuration where any account (usually a machine account) is trusted to store TGT of any user who auth to that machine and can be used to request a TGS to any service in the entire domain. this means that we can impersonate **any** user to access **any** service.
 
-In a nutshell the machine that is configured for unconstrained delegation is able to cache the user's TGT in order for it to be used to request any other service in the domain. As I said This is explained in much more depth in [@0x4148](https://x.com/0x4148)'s blog.
+
+So if we have control over a machine with `TRUSTED_FOR_DELEGATION` and a high-privileged user authenticates to it, we can then extract their TGT and use it to request service tickets to any other service.
 
 ### Enumeration
 we can use ldap query to filter only computer accounts with [SAM-Account-Type attribute](https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype) of `0x30000001` which resolves in decimal to `805306369` and using bitwise AND with trusted for delegation flag `524288` that can be found [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties) 
