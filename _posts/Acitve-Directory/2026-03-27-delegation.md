@@ -516,6 +516,7 @@ and then use the TGS.
 
 
 [rfc4120](https://datatracker.ietf.org/doc/html/rfc4120)
+
 [Kerberos Protocol Extensions: Service for User and Constrained Delegation Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/)
 
 [^blog]: [Windows authentication attacks part 2 – kerberos](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
