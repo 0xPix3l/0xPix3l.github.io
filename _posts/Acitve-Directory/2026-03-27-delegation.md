@@ -690,6 +690,8 @@ Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I
 
 [S4U2Pwnage - Will Schroeder](https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c)
 
+[Wagging the Dog: Abusing Resource-Based Constrained Delegation](https://shenaniganslabs.io/2019/01/28/Wagging-the-Dog.html)
+
 [^blog]: [Windows authentication attacks part 2 – kerberos](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
 [^protected]: [Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
 [^ntlm]: [Windows authentication attacks – part 1](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
