@@ -311,7 +311,8 @@ If we see what wireshark caught it will be something like this:
 Overview on each one:
 1. Normal NTLM authentication flow that is already well documented here[^ntlm] by the same author.
 2. This is where the web server is requesting a S4U2Self ticket on behalf of `LOL\pixel` to itself.
-3. This is the S4U2Proxy part where the web server says 
+3. This is the S4U2Proxy part where the web server says to the Domain Controller Here is the S4U2self Evidence Ticket proving that LOL\pixel authenticated to me.
+4. This is where the web server takes that final Service Ticket and actually connects to the backend file share over SMB.
 
 Let's dive deeper!
 
@@ -514,8 +515,45 @@ and then use the TGS.
 
 ## S4U2Proxy (Kerberos Only)
 
-Tomorrow..
+![image](/assets/img/Delegation/8.png)
 
+
+Instead of full S4U chain (S4U2Self → S4U2Proxy), the service will skip the S4U2Self and will only do S4U2Proxy cause it has a valid proof of the user’s identity already, I will talk explain it in more details but let's first take a look to the traffic
+![image](/assets/img/Delegation/9.png)
+_Traffic Capture Of Kerberos Only Configuration_
+
+
+You remember our lab setup right?
+
+| Machine | IP          | Configuration                                                        |
+| :------ | :---------- | :---------------------------------------------------------------     |
+| DC01    | 10.0.0.2    | Main DC (`lol.local`),  hosts the file share (`\\DC01\ShareSupport`) |
+| SRV02   | 10.0.0.3    | Hosts IIS and is Allowed to Delegate to `DC01` (Constrained)         |
+| WS01    | 10.0.0.4    | The machine that makes the HTTP request                              |
+
+Let's break what is happening:
+
+1. **AS-REQ/REP:** The client (on WS01) requests TGT for and gets it back (Normal kerberos auth).
+2. **TGS-REQ/REP:** Client asks the KDC for a ST for `HTTP\srv02` then KDC issues one and give it back to the client. **Note that this ST is what gets presented to `SRV02` which then uses it as proof of the user's identity in the additional-tickets field of the S4U2Proxy request, skipping S4U2Self entirely.**
+3. **AP-REQ:** Client presents ST *(the one from TGS-REP)* + Authenticator to IIS 
+4. **TGS-REQ/REP:** `SRV02` Performs S4U2Proxy on behalf of the user asking KDC for ST for `cifs\DC01` then DC issues delegated CIFS ST. Inside of TGS-REQ it has two tickets (we will talk in  more details about them):
+- `SRV02$`'s own TGT, which is encrypted by the machine own key to prove to the KDC that the request is legitimate
+- pixel's ST for `HTTP/srv02` which is inside `additional-tickets` part as a proof that pixel authenticated to me.
+5. Listing the `\\DC01\ShareSupport` content.
+6. **AP-REP:** this is the respone of step 3 + HTTP Response.
+
+Let's dive deep one level deep on some important packets..
+
+
+### Packet 199 - TGS-REQ
+![image](/assets/img/Delegation/10.png)
+
+
+Notices that now we only have 2 PA-DATA and it is missing the `PA-FOR-USER` that we saw earlier in [S4U2Self TGS-REQ requset](https://0xpix3l.github.io/Active-Directory/Delegation/#s4u2self-tgs-req).
+
+
+if you didn;t notcie
+Without protocol transition The computer's TGT cannot be used to obtain a forwardable service ticket via S4U2self when protocol transition is not enabled.  The S4U2self will still return a ticket but the forwardable flag will not be set, and any attempt to use it with S4U2proxy will fail.
 
 ---
 
