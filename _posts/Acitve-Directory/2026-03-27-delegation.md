@@ -666,11 +666,18 @@ And that is because when normal Windows computers request a Service Ticket, they
 
 But when forging S4U2self, we don't use the user's password.. in fact if DO have it there is no need for all of this delegation stuff, so as a security measure kerberos only make KDC issue a non-forwardable tickets.
 
-### Abusing Kerberos Only
+## Abusing Kerberos Only
 
 If you haven’t noticed yet, using s4u here won’t get us anywhere. The ticket we receive won’t have the `forwardable` flag set to `1`, which means it can’t be reused for delegation. And without a forwardable ticket, the whole chain breaks and the attack dies right there.
 
 Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I will write another way to abuse it later 
+
+
+---
+
+## RBCD
+
+> *Tomorrow..*
 
 ---
 
