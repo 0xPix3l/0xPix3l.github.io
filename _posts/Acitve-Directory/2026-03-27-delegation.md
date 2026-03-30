@@ -203,7 +203,7 @@ There are Numours ways to use this ticket one way is with Rubeus `createnetonly`
 ### Abusing Unconstrained Delegation #2 From Forced Authentication to Computer Takeover
 
 
-> *Before diving into anything, this technique does NOT require unconstrained, constrained delegation configuration. Any machine can asks for TGS on behalf of the user to itself, it just abuse of the s4u2self extention. we will see this in more details.*
+> *Before diving into anything, it is important to note that while we are using an Unconstrained Delegation mcahine to capture the ticket, the actual 'Computer Takeover' trick (S4U2self) does not require the target machine to have any delegation configured. Any computer account in the domain can use the S4U2self extension to request a TGS for any user to itself without prior setup.*
 
 Waiting for a high level user to authenticate to them machine that we own isn't the most reliable way in real life scenarios, we are not guaranteed to have a high level user auth to us. 
 
