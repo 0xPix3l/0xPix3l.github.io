@@ -2,8 +2,8 @@
 title: "Do You Really Understand Kerberos Delegation?"
 date: 2026-03-27
 permalink: /Active-Directory/Delegation/
-categories: [Active Directory, Delegation]
-tags: [Active Directory]
+categories: [Active Directory]
+tags: [Active Directory, Delegation]
 math: true
 mermaid: true
 image:

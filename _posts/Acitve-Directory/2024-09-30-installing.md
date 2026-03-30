@@ -2,7 +2,7 @@
 title: "Installing GOAD"
 date: 2024-09-30
 permalink: /Active-Directory/installing-goad/
-categories: [Active Directory, GOAD]
+categories: [Active Directory]
 tags: [Installation, Active Directory, GOAD]
 math: true
 mermaid: true

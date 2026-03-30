@@ -6,7 +6,7 @@ baseurl: ""
 
 # Terminal prompt — shown in window chrome
 prompt_user: "0xPix3l"
-prompt_host: "blog"
+prompt_host: "home"
 prompt_symbol: "$"
 
 # Words per minute for reading time calculation (default 200)
@@ -23,11 +23,9 @@ social_links:
   - name: X / Twitter
     url: https://x.com/zzziadmo
   - name: LinkedIn
-    url: https://linkedin.com/in/yourprofile
+    url: https://www.linkedin.com/in/ziadmohamed1/
   - name: GitHub
     url: https://github.com/0xPix3l
-  - name: Blog RSS
-    url: /feed.xml
 
 timezone: UTC
 
