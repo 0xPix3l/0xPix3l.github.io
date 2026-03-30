@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if page.title %}{{ page.title }} | {% endif %}{{ site.title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+  {% seo %}
+  {% feed_meta %}
+</head>
+<body>
+  {% include chrome.html %}
+
+  <!-- Mobile hamburger button -->
+  <button class="hamburger-open" id="hamburger-open" aria-label="Open menu">☰</button>
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+  <div class="sidebar-overlay" id="toc-overlay"></div>
+
+  <div class="page-wrap">
+    {% include sidebar.html %}
+
+    <div class="main-area">
+      {{ content }}
+    </div>
+
+    {% if page.toc %}
+      {% include toc.html %}
+    {% endif %}
+  </div>
+
+  <script src="{{ '/assets/js/main.js' | relative_url }}"></script>
+  {% if page.mermaid %}
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: {
+      darkMode: true,
+      background: '#0a0a0a',
+      primaryColor: '#002211',
+      primaryTextColor: '#00ff88',
+      primaryBorderColor: '#00cc66',
+      lineColor: '#00d4ff',
+      secondaryColor: '#001a22',
+      tertiaryColor: '#131313'
+    }});
+  </script>
+  {% endif %}
+</body>
+</html>

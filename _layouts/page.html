@@ -1,0 +1,12 @@
+---
+layout: default
+---
+<div class="page-content">
+  <div class="terminal-prompt">
+    <span class="prompt-user">{{ site.prompt_user | default: "0xPix3l" }}@{{ site.prompt_host | default: "blog" }}</span>:<span class="prompt-path">~</span>{{ site.prompt_symbol | default: "$" }} cat /{{ page.title | slugify }}.md
+  </div>
+
+  <h1 class="page-title">{{ page.title }}</h1>
+
+  {{ content }}
+</div>

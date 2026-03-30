@@ -10,7 +10,7 @@ image:
   path: /assets/img/Delegation/delegation.jpg
 ---
 
----
+
 
 Hello fellow packet enjoyers and delegation survivors,
 
@@ -21,7 +21,9 @@ S4U2Self, S4U2Proxy, RBCD, forwardable tickets…
 and at some point you just nod and pretend it makes sense.
 ![image](/assets/img/Delegation/brainfuck.png)
 _image from @theluemmel_
-well… it doesn’t
+
+
+**well… it doesn’t**
 
 
 
@@ -90,18 +92,9 @@ we can also see that from access token of `w3wp.exe` (IIS worker process) that i
 ## What Is Delegation?
 Kerberos delegation lets a service act as a user when interacting with other services. Imagine you log into some front-end web app, but behind the scenes it needs to talk to a database or a file server to actually get things done. At that point, the app needs a way to access those back-end resources as you, not as itself.
 
-```mermaid
-flowchart LR
-    U[User]
-    DC["Domain Controller (KDC)"]
-    FE["IIS Server (Delegated Service)"]
-    BE["SQL Server (Back-End)"]
+![diagram](/assets/img/Delegation/diagram.svg) 
 
-    U <-->|AS-REQ / AS-REP| DC
-    U <-->|TGS-REQ / TGS-REP| DC
-    U <-->|AP-REQ / AP-REP| FE
-    FE -->| Access as the User | BE
-```
+
 We know when a user logs in during the initial logon, he obtain a TGT which he can use to grab service tickets for whatever they need (enabling SSO). But in a scenario like this how does the web server get a SQL service ticket as that user?
 that’s the problem delegation was built to solve.
 
@@ -219,7 +212,7 @@ I like to think of it as unconstrained delegation but with guardrails, instead o
 
 
 So instead of relying on the `TRUSTED_FOR_DELEGATION` flag like in unconstrained case, constrained delegation is controlled through the `msDS-AllowedToDelegateTo` attribute on the computer account which is a list of `SPNs` that this machine is allowed to act against on behalf of a user.
-```bash
+```
 beacon> ldapsearch (&(objectclass=computer)(msDS-AllowedToDelegateTo=*)) --attributes samAccountName,msDS-AllowedToDelegateTo
 [*] Filter: Filter: (&(objectclass=computer)(msDS-AllowedToDelegateTo=*))
 [*] Scope of search value: 3

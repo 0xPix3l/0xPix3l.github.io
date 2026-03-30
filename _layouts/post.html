@@ -1,0 +1,64 @@
+---
+layout: default
+toc: true
+---
+{% assign wpm = site.wpm | default: 200 %}
+{% assign words = content | number_of_words %}
+{% assign minutes = words | divided_by: wpm %}
+{% if minutes < 1 %}{% assign minutes = 1 %}{% endif %}
+
+<article>
+  <header class="post-header">
+    <div class="post-breadcrumb">
+      <a href="{{ '/' | relative_url }}">home</a>
+      <span class="sep">/</span>
+      {% for cat in page.categories %}
+        <a href="{{ '/categories' | relative_url }}#{{ cat | slugify }}">{{ cat | downcase }}</a>
+        {% unless forloop.last %}<span class="sep">/</span>{% endunless %}
+      {% endfor %}
+    </div>
+
+    {% if page.categories.size > 0 %}
+      <div class="post-category">{{ page.categories | first }}</div>
+    {% endif %}
+
+    <h1 class="post-title">{{ page.title }}</h1>
+
+    <div class="post-meta-bar">
+      <span>{{ page.date | date: "%b %d, %Y" }}</span>
+      {% if page.last_modified_at %}
+        <span class="sep">|</span>
+        <span>Updated {{ page.last_modified_at | date: "%b %d, %Y" }}</span>
+      {% endif %}
+      <span class="sep">|</span>
+      <span class="author">By <a href="{{ site.author.url | default: '#' }}">{{ site.author.name }}</a></span>
+      <span class="sep">|</span>
+      <span class="readtime">⏱ {{ minutes }} min read</span>
+    </div>
+
+    {% if page.image.path %}
+    <div class="post-hero">
+      <img src="{{ page.image.path | relative_url }}" alt="{{ page.title }}">
+    </div>
+    {% elsif page.image %}
+    <div class="post-hero">
+      <img src="{{ page.image | relative_url }}" alt="{{ page.title }}">
+    </div>
+    {% endif %}
+  </header>
+
+  <div class="post-body">
+    {{ content }}
+  </div>
+
+  <div class="post-footer">
+    {% if page.tags.size > 0 %}
+    <div class="post-footer-tags">
+      <span class="footer-label">Tags:</span>
+      {% for tag in page.tags %}
+        <a href="{{ '/tags' | relative_url }}#{{ tag | slugify }}" class="tag-chip">{{ tag }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</article>

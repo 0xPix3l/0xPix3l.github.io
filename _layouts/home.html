@@ -1,0 +1,45 @@
+---
+layout: default
+---
+<div class="home-content">
+  <div class="terminal-prompt">
+    <span class="prompt-user">{{ site.prompt_user | default: "0xPix3l" }}@{{ site.prompt_host | default: "blog" }}</span>:<span class="prompt-path">~</span>{{ site.prompt_symbol | default: "$" }} ls ./posts/
+  </div>
+
+  <div class="home-title">// LATEST POSTS</div>
+
+  <div class="post-list">
+    {% assign wpm = site.wpm | default: 200 %}
+    {% for post in site.posts %}
+    {% assign words = post.content | number_of_words %}
+    {% assign minutes = words | divided_by: wpm %}
+    {% if minutes < 1 %}{% assign minutes = 1 %}{% endif %}
+    <a href="{{ post.url | relative_url }}" class="post-card">
+      <div class="post-card-meta">
+        <span class="post-card-date">{{ post.date | date: "%b %d, %Y" }}</span>
+        {% if post.categories.size > 0 %}
+          <span class="post-card-cat">{{ post.categories | first }}</span>
+        {% endif %}
+        <span class="post-card-read">⏱ {{ minutes }} min read</span>
+      </div>
+      <div class="post-card-title">{{ post.title }}</div>
+      {% if post.description %}
+        <div class="post-card-desc">{{ post.description }}</div>
+      {% elsif post.excerpt %}
+        <div class="post-card-desc">{{ post.excerpt | strip_html | truncate: 140 }}</div>
+      {% endif %}
+      {% if post.tags.size > 0 %}
+        <div class="post-card-tags">
+          {% for tag in post.tags %}<span class="tag-chip">{{ tag }}</span>{% endfor %}
+        </div>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if site.posts.size == 0 %}
+  <div class="empty-state">
+    No posts yet. Add markdown files to <code>_posts/</code>
+  </div>
+  {% endif %}
+</div>

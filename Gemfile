@@ -1,14 +1,16 @@
-# frozen_string_literal: true
-
 source "https://rubygems.org"
 
-gem "jekyll-theme-chirpy", "~> 7.1", ">= 7.1.1"
+gem "jekyll", "~> 4.3"
 
-gem "html-proofer", "~> 5.0", group: :test
+# Core plugins
+gem "jekyll-feed"
+gem "jekyll-seo-tag"
+gem "jekyll-sitemap"
 
-platforms :mingw, :x64_mingw, :mswin, :jruby do
-  gem "tzinfo", ">= 1", "< 3"
-  gem "tzinfo-data"
-end
+# Required for Windows + Ruby 3.x
+gem "tzinfo"
+gem "tzinfo-data"
 
-gem "wdm", :platforms => [:mingw, :x64_mingw, :mswin]
+# Required for Jekyll serve (Ruby 3+)
+gem "webrick"
+gem "jekyll-last-modified-at"
