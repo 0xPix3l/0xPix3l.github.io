@@ -202,7 +202,12 @@ There are Numours ways to use this ticket one way is with Rubeus `createnetonly`
 
 ### Abusing Unconstrained Delegation #2 From Forced Authentication to Computer Takeover
 
+
+> *Before diving into anything, this technique does NOT require unconstrained, constrained delegation configuration. Any machine can asks for TGS on behalf of the user to itself, it just abuse of the s4u2self extention. we will see this in more details.*
+
 Waiting for a high level user to authenticate to them machine that we own isn't the most reliable way in real life scenarios, we are not guaranteed to have a high level user auth to us. 
+
+
 
 So instead of there is a way to get local admin on any machine by forging TGS for any user to that specific computer by:
 1. Forcing the targeted computer (`DC01`) to auth to us (via tools like `PetitPotam` or `SpoolSample`).
