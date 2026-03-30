@@ -674,6 +674,12 @@ Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I
 
 ---
 
+## TO-DO
+- S4U2Proxy abuse
+- Service Name Substitution
+- `/self` explaination
+- ghost SPN 
+
 ## Refrences / Footnote
 
 
