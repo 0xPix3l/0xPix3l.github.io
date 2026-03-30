@@ -14,3 +14,6 @@ gem "tzinfo-data"
 # Required for Jekyll serve (Ruby 3+)
 gem "webrick"
 gem "jekyll-last-modified-at"
+
+# github fix
+gem "html-proofer"
