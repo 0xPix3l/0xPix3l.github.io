@@ -1,1 +1,7 @@
-loading..
+---
+layout: page
+title: About
+permalink: /about/
+---
+
+Loading..
