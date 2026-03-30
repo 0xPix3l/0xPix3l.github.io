@@ -751,3 +751,12 @@ html {
   .scroll-to-top { display: flex; }
   .scroll-to-top.visible { opacity: 1; }
 }
+
+.post-body a {
+  text-decoration: underline !important;
+  border-bottom: none !important;
+}
+
+.post-body a:hover {
+  text-decoration: underline !important;
+}
