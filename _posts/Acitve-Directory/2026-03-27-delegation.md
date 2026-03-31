@@ -1037,10 +1037,26 @@ Then choose the write permission:
 
 
 
-### msDS-AllowedToActOnBehalfOfOtherIdentity
-This attribute lives on the backend and only configured groups and user or groups has 
+### Enumeration
+We need to see who has the ability to write to the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute..
 
+explain it tomorrow..
 
+```shell
+Get-DomainComputer | Get-DomainObjectAcl | ? { $_.ObjectAceType -eq '3f78c3e5-f79a-46bd-a0b8-9d18116ddc79' -and $_.ActiveDirectoryRights -match 'WriteProperty' } | select ObjectDN,SecurityIdentifier
+
+ObjectDN                                      SecurityIdentifier
+--------                                      ------------------
+CN=DC01,OU=Domain Controllers,DC=lol,DC=local S-1-5-21-1558345677-4257867870-1842270656-3603
+CN=DC01,OU=Domain Controllers,DC=lol,DC=local S-1-5-10
+CN=WS01,CN=Computers,DC=lol,DC=local          S-1-5-10
+CN=ITComputer,OU=IT,DC=lol,DC=local           S-1-5-10
+CN=SRV02,CN=Computers,DC=lol,DC=local         S-1-5-10
+```
+
+### Exploitation
+
+Tomorrow..
 
 ---
 
