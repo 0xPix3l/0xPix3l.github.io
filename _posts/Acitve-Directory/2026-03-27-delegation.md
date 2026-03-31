@@ -90,7 +90,7 @@ we can also see that from access token of `w3wp.exe` (IIS worker process) that i
 ---
 
 ## What Is Delegation?
-Kerberos delegation lets a service act as a user when interacting with other services. Imagine you log into some front-end web app, but behind the scenes it needs to talk to a database or a file server to actually get things done. At that point, the app needs a way to access those back-end resources as you, not as itself.
+Kerberos delegation lets a service act as a user when interacting with other services. Imagine you log into some front-end web app, but behind the scenes it needs to talk to a database or a file server to actually get things done. At that point, the app needs a way to access those backend resources as you, not as itself.
 
 ![diagram](/assets/img/Delegation/diagram.svg) 
 
@@ -100,6 +100,17 @@ that’s the problem delegation was built to solve.
 
 <!-- When user logs in he obtain a TGT which is used to requset TGS for various services, which implements the sense of SSO. But in a scenario like this how could the web server obtain a SQL service ticket for the user? this what delegation was made for -->
 
+## SeEnableDelegationPrivilege
+This privilege is the heart of delegation configuration and it is granted by default for doamin admins and enterprise admins.. but if it is configured for a user (or computer) account + having any way of edititng Object attributes like `GenericWrite` or `WriteProperty` etc.. They can enable (or edit):
+- `msDS-AllowedToDelegateTo`
+- `TrustedForDelegation`
+- `TrustedToAuthForDelegation`
+
+*We will talk more about each one of them in it's own section*
+
+And since it is configured using a GPO, we can't really see it in bloodhound. so to enumerate something like this we can use tools like `powerview` or by viewing the GPO's configurations since it is inside `SYSVOL` (and any domain user can access it), for me it was in `SYSVOL\lol.local\Policies\{31B2F340-016D-11D2-945F-00C04FB984F9}\MACHINE\Microsoft\Windows NT\SecEdit\GptTmpl.inf` (`{31B2F340-016D-11D2-945F-00C04FB984F9}` is the default GUID for the `Default Domain Controllers Policy` that is where I configured it)
+![image](/assets/img/Delegation/18.png)
+_This SID resolves to user pixel_
 
 ---
 
@@ -113,7 +124,7 @@ But in general Unconstrained Delegation is a configuration where any account (us
 So if we have control over a machine with `TRUSTED_FOR_DELEGATION` and a high-privileged user authenticates to it, we can then extract their TGT and use it to request service tickets to any other service.
 
 ### Enumeration
-we can use ldap query to filter only computer accounts with [SAM-Account-Type attribute](https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype) of `0x30000001` which resolves in decimal to `805306369` and using bitwise AND with trusted for delegation flag `524288`, all other flags can be found [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties) 
+we can use ldap query to filter only computer accounts with [SAM-Account-Type attribute](https://learn.microsoft.com/en-us/windows/win32/adschema/a-samaccounttype) of `0x30000001` which resolves in decimal to `805306369` (`SAM_MACHINE_ACCOUNT`) and using bitwise AND with trusted for delegation flag `524288`, all other flags can be found [here](https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/useraccountcontrol-manipulate-account-properties) 
 ```shell
 beacon> ldapsearch (&(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)) --attributes samaccountname
 
@@ -124,7 +135,7 @@ sAMAccountName: WS01$
 retrieved 2 results total
 
 ```
-As expected we see that `WS01$` is configured with `TRUSTED_FOR_DELEGATION`
+As configured we can see that `WS01$` is configured with `TRUSTED_FOR_DELEGATION`
 
 > Domain Controllers are configured with unconstrained delegation by default, but that’s not particularly useful. If you’ve compromised the DC, it's already game over.
 {: .prompt-info }
@@ -211,7 +222,9 @@ Waiting for a high level user to authenticate to them machine that we own isn't 
 
 So instead of there is a way to get local admin on any machine by forging TGS for any user to that specific computer by:
 1. Forcing the targeted computer (`DC01`) to auth to us (via tools like `PetitPotam` or `SpoolSample`).
+
 2. Because of the delegation setting, `DC01` sends its own Machine Account TGT (DC01$) to our server. This ticket is now cached in `LSASS` of `SRV02`.
+
 3. We use this captured DC01$ TGT to perform an S4U2self request *(More details on this below)*. This asks the Domain Controller to give us a TGS for any user (like Administrator) to a service on that same machine.
 - *This works even if the user is marked as "Sensitive and cannot be delegated" because the computer is only delegating to itself, which bypasses that specific Kerberos restriction.*
 4. PtT using the new TGS. and since the service (like `cifs`) runs as `SYSTEM`, it can decrypt the ticket we just forged with the `DC01$` machine key.
@@ -706,6 +719,9 @@ It exists because the user didn’t authenticate via Kerberos, so this is basica
 
 it has the target user (e.g., pixel) and Checksum. The Checksum is used to assure that no MitM can alter the request and change the target to user to an admin account. all the details of how it is calculated is here [^PA-FOR-USER]
 
+> This is why we can impersonate any user with `/impersonateuser` option, because the DC trust the service that made the S4U2Self requset that a user has authenticated to it in someway (via NTLM or Smart Card). it was never designed to require proof of the user.
+{: .prompt-info }
+
 #### PA-FOR-X509-USER
 PA-FOR-X509-USER is just the certificate-backed version of S4U. Instead of asking the KDC to impersonate a user by name, the service provides an X.509 certificate. From offensive perspective it can be used with ESC1/ESC6/ESC8 attacks IF we can get a certificate for a user to be combined with S4U
 
@@ -822,12 +838,16 @@ You remember our lab setup right?
 Let's break what is happening:
 
 1. **AS-REQ/REP:** The client (on WS01) requests TGT for and gets it back (Normal kerberos auth).
+
 2. **TGS-REQ/REP:** Client asks the KDC for a ST for `HTTP\srv02` then KDC issues one and give it back to the client. **Note that this ST is what gets presented to `SRV02` which then uses it as proof of the user's identity in the additional-tickets field of the S4U2Proxy request, skipping S4U2Self entirely.**
+
 3. **AP-REQ:** Client presents ST *(the one from TGS-REP)* + Authenticator to IIS 
+
 4. **TGS-REQ/REP:** `SRV02` Performs S4U2Proxy on behalf of the user asking KDC for ST for `cifs\DC01` then DC issues delegated CIFS ST. Inside of TGS-REQ it has two tickets (we will talk in  more details about them):
 - `SRV02$`'s own TGT, which is encrypted by the machine own key to prove to the KDC that the request is legitimate
 - pixel's ST for `HTTP/srv02` which is inside `additional-tickets` part as a proof that pixel authenticated to me.
 5. Listing the `\\DC01\ShareSupport` content.
+
 6. **AP-REP:** this is the respone of step 3 + HTTP Response.
 
 Let's dive one level deep on one important packet, you guessed it... the S4U2Proxy packet!
@@ -972,27 +992,72 @@ Beside stealing a valid TGS from LSASS and fed it to a s4u2proxy attack chain, I
 
 ## RBCD
 
-> *Tomorrow..*
+
+### Introduction
+Resource-Based Constrained Delegation, well.. we can say it's the same as constrained delegation but the direction of granting permessions is the other way around, rather saying that "This service can delegate to that resource" it says "This resource trusts these specific services to act on behalf of users"
+![image](/assets/img/Delegation/19.png)
+_image from @_nwodtuhs_
+
+Let's give an example to clarfiy things more..
+
+In our setup we had our webserver `SRV02` configured for constrained delegation to the backend server *(imagine a MSSQL server for example but have `DC01` in our scenario)* and it has `msDS-AllowedToDelegateTo` attribute with `cifs\dc01` saved in it. Everyone is happy and it works just fine.. But we can face some issues:
+
+- what if we wanted to add a new web server `SRV03` for example? even we are local admin on `SRV03` we can't edit `msDS-AllowedToDelegateTo` to add the SPN of the backend server which in our case is `cifs\dc01`. Why is that? because we don't have the [SeEnableDelegationPrivilege](https://0xpix3l.github.io/Active-Directory/Delegation/#seenabledelegationprivilege) that we talked about earlier and it is only given to DAs and EAs ONLY by default.
+
+- The backend administrators had NO control over who was delegating to their resource.. any front-end service configured for delegation with the backend's SPN in its msDS-AllowedToDelegateTo list could freely impersonate any user to that backend
+
+For these reasons RBCD was introduced in Windows Server 2012. It puts the control of the delegation is the hands of the backend service admins, No more need of editing the `msDS-AllowedToDelegateTo` attribute. Now backend admins can edit `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute that lives on the backend server to only limit certain services to be able to delegate to it. 
+
+### Network Analysis
+
+On the Network level it is exactly the same as Constrained Delegation, The difference happens inside the DC memory..
+
+**If it's Traditional Constrained Delegation:**
+1. KDC looks at the **Source** of the packet (`SRV02`).
+2. It pulls the `msDS-AllowedToDelegateTo` attribute for `SRV02`.
+3. It checks if `cifs/DC01` is in that text list.
+4. If yes, send `TGS-REP`.
+
+**If it's RBCD:**
+1. KDC looks at the **Target** requested in the packet (`DC01`).
+2. It pulls the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute for `DC01`.
+3. It parses the **Security Descriptor (Binary)** to see if the SID of `SRV02` is allowed.
+4. If yes, send `TGS-REP`.
+
+### Configuring the ACE
+
+RBCD is natively configured like protocol transition to support all modern authentication methonds, but doesn't have certain way to specify services like we did in constrained delegation since trust is granted at the machine account level via SID rather than per SPN. It simply says "Is SRV02$'s SID in msDS-AllowedToActOnBehalfOfOtherIdentity?" If so it passes.
+
+So in order to edit this attribute we need to have the `msDS-AllowedToActOnBehalfOfOtherIdentity` write on our backend service (`DC01`) which can be done with Delegation of Control Wizard. I created group called `Web Admins` that has user `bob` in it, we will give that group this write permission. After right clicking on `Domain Controllers OU` we can use the wizard and add our group in.
+
+![image](/assets/img/Delegation/20.png)
+
+Then choose the write permission:
+![image](/assets/img/Delegation/22.png)
+
+
+
+### msDS-AllowedToActOnBehalfOfOtherIdentity
+This attribute lives on the backend and only configured groups and user or groups has 
+
+
 
 ---
 
 ## TO-DO
-- More on S4U2Proxy abuse
+- More ways to abuse kerberos only
 - Service Name Substitution
-- ~~`/self` explaination~~  [here](https://0xpix3l.github.io/Active-Directory/Delegation/#abusing-unconstrained-delegation-2-more-advanced)
+- ~~`/self` option in rubeus explaination~~  [here](https://0xpix3l.github.io/Active-Directory/Delegation/#abusing-unconstrained-delegation-2-more-advanced)
 - ghost SPN 
 
 ## Refrences / Footnote
 
-[revisiting-delegate-2-thyself](https://exploit.ph/revisiting-delegate-2-thyself.html)
-
-[rfc4120](https://datatracker.ietf.org/doc/html/rfc4120)
-
-[Kerberos Protocol Extensions: Service for User and Constrained Delegation Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/)
-
-[S4U2Pwnage - Will Schroeder](https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c)
-
-[Wagging the Dog: Abusing Resource-Based Constrained Delegation](https://shenaniganslabs.io/2019/01/28/Wagging-the-Dog.html)
+- [revisiting-delegate-2-thyself](https://exploit.ph/revisiting-delegate-2-thyself.html)
+- [rfc4120](https://datatracker.ietf.org/doc/html/rfc4120)
+- [Kerberos Protocol Extensions: Service for User and Constrained Delegation Protocol](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/)
+- [S4U2Pwnage - Will Schroeder](https://harmj0y.medium.com/s4u2pwnage-36efe1a2777c)
+- [Wagging the Dog: Abusing Resource-Based Constrained Delegation](https://shenaniganslabs.io/2019/01/28/Wagging-the-Dog.html)
+- [Delegating Kerberos To Bypass Kerberos Delegation Limitation](https://www.youtube.com/watch?v=byykEId3FUs&t=1s)
 
 [^blog]: [Windows authentication attacks part 2 – kerberos](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
 [^protected]: [Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
