@@ -1336,7 +1336,7 @@ Happy PWNING!
 ## TO-DO
 - More ways to abuse kerberos only
 - Service Name Substitution
-- ~~/self option in rubeus explaination~~  [here](https://0xpix3l.github.io/Active-Directory/Delegation/#abusing-unconstrained-delegation-2-more-advanced)
+- ~~/self option in rubeus explaination~~  [here](https://0xpix3l.github.io/Active-Directory/Delegation/#abusing-unconstrained-delegation-2-from-forced-authentication-to-computer-takeover)
 - ghost SPN 
 
 ## Refrences / Footnote
