@@ -1323,7 +1323,7 @@ beacon> ls \\dc01\c$
 ``` 
 
 --- 
-## So.. what we have done today?
+## So.. what have we done today?
 In this blog, we took a deep dive into Kerberos delegation by analyzing the network traffic behind each step, from forced authentication to ticket issuance and abuse.
 We then showed how those identities can be leveraged through S4U techniques and subtle ticket manipulation to gain elevated access.
 All of this highlights how simply Kerberos’ intended behavior can lead to full compromise when the right pieces are in place.
