@@ -1328,7 +1328,9 @@ In this blog, we took a deep dive into Kerberos delegation by analyzing the netw
 We then showed how those identities can be leveraged through S4U techniques and subtle ticket manipulation to gain elevated access.
 All of this highlights how simply Kerberos’ intended behavior can lead to full compromise when the right pieces are in place.
 
-Happy hacking!
+Happy PWNING!
+
+
 ---
 
 ## TO-DO
