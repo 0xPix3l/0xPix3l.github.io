@@ -86,7 +86,7 @@ we can also see that from access token of `w3wp.exe` (IIS worker process) that i
 
 ![image](/assets/img/Delegation/priv.png)
 
-> NOTE: Most of the commands we’ll be using require `SYSTEM` level privileges on the machine to extract tickets. + I will be using [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF) instead of Rubeus
+> NOTE: Most of the commands we’ll be using require `SYSTEM` level privileges on the machine to extract tickets. + I will be using [Kerbeus-BOF](https://github.com/RalfHacker/Kerbeus-BOF) in C2 instead of Rubeus
 {: .prompt-warning }
 ---
 
