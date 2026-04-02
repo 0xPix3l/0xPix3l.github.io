@@ -69,13 +69,13 @@ Now let’s break it.
 
 I have set up a lab that looks something like this:
 
-| Machine | IP          | Configuration                                                   |
-| :------ | :---------- | :---------------------------------------------------------------|
-| DC01    | 10.0.0.2    | Main DC (`lol.local`)                                           |
-| SRV02   | 10.0.0.3    | Hosts IIS and is Allowed to Delegate to `DC01` (Constrained)    |
-| WS01    | 10.0.0.4    | `TRUSTED_FOR_DELEGATION` (Unconstrained)                        |
-| Kali    | 10.0.0.128  | Commando VM                                                     |
-| Kali    | 10.0.0.129  | Hosting AdaptixC2                                               | 
+| Machine        | IP          | Configuration                                                   |
+| :------        | :---------- | :---------------------------------------------------------------|
+| DC01           | 10.0.0.2    | Main DC (`lol.local`)                                           |
+| SRV02          | 10.0.0.3    | Hosts IIS and is Allowed to Delegate to `DC01` (Constrained)    |
+| WS01           | 10.0.0.4    | `TRUSTED_FOR_DELEGATION` (Unconstrained)                        |
+| Commando VM    | 10.0.0.128  | Used in carrying out the attacks                                |
+| Kali           | 10.0.0.129  | Hosting AdaptixC2                                               | 
 
 
 
@@ -1003,7 +1003,7 @@ Let's give an example to clarfiy things more..
 
 In our setup we had our webserver `SRV02` configured for constrained delegation to the backend server *(imagine a MSSQL server for example but have `DC01` in our scenario)* and it has `msDS-AllowedToDelegateTo` attribute with `cifs\dc01` saved in it. Everyone is happy and it works just fine.. But we can face some issues:
 
-- what if we wanted to add a new web server `SRV03` for example? even we are local admin on `SRV03` we can't edit `msDS-AllowedToDelegateTo` to add the SPN of the backend server which in our case is `cifs\dc01`. Why is that? because we don't have the [SeEnableDelegationPrivilege](https://0xpix3l.github.io/Active-Directory/Delegation/#seenabledelegationprivilege) that we talked about earlier and it is only given to DAs and EAs ONLY by default.
+- what if we wanted to add a new web server `SRV03` for example? even we are local admin on `SRV03` we can't edit `msDS-AllowedToDelegateTo` to add the SPN of the backend server which in our case is `cifs\dc01`. Why is that? because we don't have the [SeEnableDelegationPrivilege](https://0xpix3l.github.io/Active-Directory/Delegation/#seenabledelegationprivilege) that we talked about earlier and it is only given to DAs and EAs by default.
 
 - The backend administrators had NO control over who was delegating to their resource.. any front-end service configured for delegation with the backend's SPN in its msDS-AllowedToDelegateTo list could freely impersonate any user to that backend
 
