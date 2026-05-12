@@ -268,7 +268,7 @@ Trying pipe lsarpc
 
 #### 2. Dumping DC01$ TGT from LSASS
 we can monitor for new TGTs using Rubeus like normal unconstrained delegation:
-> We can use BOFs here but we need to be quick because they are single-threaded (which will make the beacon unusable when monitoring for tickets) not like the fork & run processes which runs in a seprate process than the actual beacon
+> We can use BOFs here but we need to be quick because beacons are single-threaded (which will make the beacon unusable when monitoring for tickets) not like the fork & run processes which runs in a seprate process than the actual beacon
 {: .prompt-info }
 ```shell
 C:\>.\Rubeus.exe monitor /interval:5 /nowrap /filteruser:DC01$
